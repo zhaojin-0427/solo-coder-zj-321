@@ -1,15 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RotateCcw, FileDown, Printer, Eye, Users, UserCheck } from 'lucide-vue-next';
+import {
+  RotateCcw,
+  FileDown,
+  Printer,
+  Eye,
+  Users,
+  UserCheck,
+  History,
+} from 'lucide-vue-next';
+import { ref } from 'vue';
 import { useAppStore } from '@/stores/app';
 import ChecklistItem from './ChecklistItem.vue';
+import RouteInfoForm from './RouteInfoForm.vue';
+import CheckStages from './CheckStages.vue';
+import ChecklistHistory from './ChecklistHistory.vue';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
 import type { ChecklistItem as ChecklistItemType } from '@/types';
 
 const store = useAppStore();
+const showHistory = ref(false);
 
 const sceneColor = computed(() => store.activeScene?.color || '#FF8C42');
+
+function toggleHistory() {
+  showHistory.value = !showHistory.value;
+}
 
 function handleItemToggle(docId: string) {
   store.toggleChecklistItem(docId);
@@ -69,8 +86,16 @@ function handleLargePreview() {
       </div>
       <div
         v-if="store.currentChecklist"
-        class="flex items-center gap-3"
+        class="flex flex-wrap items-center gap-3"
       >
+        <button
+          class="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-purple-200 rounded-xl font-bold text-purple-600 hover:bg-purple-50 transition-all"
+          :class="showHistory ? 'bg-purple-100 border-purple-400' : ''"
+          @click="toggleHistory"
+        >
+          <History :size="18" />
+          历史方案 ({{ store.checklists.length }})
+        </button>
         <button
           class="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all"
           @click="handleReset"
@@ -113,6 +138,11 @@ function handleLargePreview() {
     </div>
 
     <div v-else class="space-y-6">
+      <ChecklistHistory
+        v-if="showHistory"
+        @close="showHistory = false"
+      />
+
       <div
         class="p-6 rounded-2xl text-white"
         :style="{ backgroundColor: sceneColor }"
@@ -184,6 +214,8 @@ function handleLargePreview() {
         </div>
       </div>
 
+      <RouteInfoForm />
+
       <div>
         <h4 class="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
           <span class="text-2xl">✅</span>
@@ -202,21 +234,35 @@ function handleLargePreview() {
         </div>
       </div>
 
+      <CheckStages />
+
       <button
-        v-if="store.allChecked && !store.currentChecklist.isCompleted"
+        v-if="store.allChecked && store.allStagesCompleted && !store.currentChecklist.isCompleted"
         class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-xl shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all transform hover:-translate-y-0.5"
         @click="store.completeChecklist()"
       >
-        ✅ 确认完成，保存清单记录
+        ✅ 全部核验完成，保存方案记录
       </button>
+
+      <div
+        v-if="!store.allStagesCompleted && store.currentChecklist"
+        class="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-center"
+      >
+        <p class="text-amber-700 font-bold">
+          ⚠️ 请完成所有三阶段核验步骤后再保存
+        </p>
+      </div>
 
       <div
         v-if="store.currentChecklist.isCompleted"
         class="p-5 bg-green-50 border-2 border-green-200 rounded-2xl text-center"
       >
         <span class="text-5xl">💚</span>
-        <p class="mt-3 text-green-700 font-bold text-xl">清单已完成并保存</p>
+        <p class="mt-3 text-green-700 font-bold text-xl">方案已完成并保存</p>
         <p class="text-green-600 mt-1">放心出门办事吧，一切都准备好了！</p>
+        <p class="text-green-500 mt-2 text-sm">
+          您可以在"历史方案"中查看或复制此方案
+        </p>
       </div>
     </div>
   </div>

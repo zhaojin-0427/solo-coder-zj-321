@@ -1,7 +1,18 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import type { Document, Scene, Checklist, ChecklistItem } from '@/types';
-import { presetDocuments, presetScenes } from '@/mock/initialData';
+import type {
+  Document,
+  Scene,
+  Checklist,
+  ChecklistItem,
+  RouteInfo,
+  CheckStages,
+  StageStep,
+} from '@/types';
+import {
+  presetDocuments,
+  presetScenes,
+} from '@/mock/initialData';
 import {
   loadDocuments,
   saveDocuments,
@@ -11,6 +22,10 @@ import {
   saveChecklists,
   generateId,
 } from '@/utils/storage';
+import {
+  defaultRouteInfo,
+  generateDefaultStages,
+} from '@/types';
 
 export const useAppStore = defineStore('app', () => {
   const documents = ref<Document[]>([]);
@@ -140,6 +155,8 @@ export const useAppStore = defineStore('app', () => {
       items,
       isCompleted: false,
       createdAt: new Date().toISOString().split('T')[0],
+      routeInfo: { ...defaultRouteInfo },
+      checkStages: generateDefaultStages(scene.name),
     };
   }
 
@@ -217,6 +234,80 @@ export const useAppStore = defineStore('app', () => {
     saveChecklist();
   }
 
+  function updateRouteInfo(updates: Partial<RouteInfo>) {
+    if (!currentChecklist.value) return;
+    currentChecklist.value.routeInfo = {
+      ...currentChecklist.value.routeInfo,
+      ...updates,
+    };
+  }
+
+  function toggleStageStep(
+    stage: 'beforeLeave' | 'onTheWay' | 'afterFinish',
+    stepId: string
+  ) {
+    if (!currentChecklist.value) return;
+    const step = currentChecklist.value.checkStages[stage].find(
+      (s) => s.id === stepId
+    );
+    if (step) {
+      step.isChecked = !step.isChecked;
+    }
+  }
+
+  function loadChecklist(checklist: Checklist) {
+    currentChecklist.value = JSON.parse(JSON.stringify(checklist));
+    const scene = scenes.value.find((s) => s.id === checklist.sceneId);
+    activeScene.value = scene || null;
+  }
+
+  function copyChecklistAsNew(checklist: Checklist) {
+    const newChecklist: Checklist = {
+      ...JSON.parse(JSON.stringify(checklist)),
+      id: generateId('checklist'),
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().split('T')[0],
+      isCompleted: false,
+    };
+    newChecklist.items.forEach((item) => (item.isChecked = false));
+    Object.values(newChecklist.checkStages).forEach((stage) => {
+      stage.forEach((step) => (step.isChecked = false));
+    });
+    currentChecklist.value = newChecklist;
+    const scene = scenes.value.find((s) => s.id === checklist.sceneId);
+    activeScene.value = scene || null;
+  }
+
+  const stageCheckedCount = computed(() => {
+    if (!currentChecklist.value) return { beforeLeave: 0, onTheWay: 0, afterFinish: 0 };
+    const stages = currentChecklist.value.checkStages;
+    return {
+      beforeLeave: stages.beforeLeave.filter((s) => s.isChecked).length,
+      onTheWay: stages.onTheWay.filter((s) => s.isChecked).length,
+      afterFinish: stages.afterFinish.filter((s) => s.isChecked).length,
+    };
+  });
+
+  const stageTotalCount = computed(() => {
+    if (!currentChecklist.value) return { beforeLeave: 0, onTheWay: 0, afterFinish: 0 };
+    const stages = currentChecklist.value.checkStages;
+    return {
+      beforeLeave: stages.beforeLeave.length,
+      onTheWay: stages.onTheWay.length,
+      afterFinish: stages.afterFinish.length,
+    };
+  });
+
+  const allStagesCompleted = computed(() => {
+    if (!currentChecklist.value) return false;
+    const stages = currentChecklist.value.checkStages;
+    return (
+      stages.beforeLeave.every((s) => s.isChecked) &&
+      stages.onTheWay.every((s) => s.isChecked) &&
+      stages.afterFinish.every((s) => s.isChecked)
+    );
+  });
+
   return {
     documents,
     scenes,
@@ -228,6 +319,9 @@ export const useAppStore = defineStore('app', () => {
     totalCount,
     progressPercent,
     allChecked,
+    stageCheckedCount,
+    stageTotalCount,
+    allStagesCompleted,
     init,
     addDocument,
     updateDocument,
@@ -245,5 +339,9 @@ export const useAppStore = defineStore('app', () => {
     closeLargePreview,
     resetChecklist,
     completeChecklist,
+    updateRouteInfo,
+    toggleStageStep,
+    loadChecklist,
+    copyChecklistAsNew,
   };
 });

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { X, FileDown, Printer, MapPin } from 'lucide-vue-next';
+import {
+  X,
+  FileDown,
+  Printer,
+  MapPin,
+  Clock,
+  Building2,
+  Phone,
+  Handshake,
+  Home,
+} from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
@@ -95,6 +105,121 @@ function handleClose() {
                 <p class="text-3xl font-black text-blue-600">{{ store.currentChecklist.companion }}</p>
               </div>
             </div>
+          </div>
+
+          <div
+            v-if="store.currentChecklist.routeInfo?.location || store.currentChecklist.routeInfo?.departureTime || store.currentChecklist.routeInfo?.counterName || store.currentChecklist.routeInfo?.contactPhone"
+            class="mb-8 p-6 bg-purple-50 rounded-2xl border-3 border-purple-200"
+          >
+            <div class="flex items-center gap-4 mb-4">
+              <div class="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center text-white text-4xl">
+                🗺️
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-purple-800">办事路线信息</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                v-if="store.currentChecklist.routeInfo?.location"
+                class="flex items-center gap-3 p-4 bg-white rounded-xl"
+              >
+                <MapPin :size="28" class="text-red-500 flex-shrink-0" />
+                <div>
+                  <p class="text-lg font-bold text-gray-800">办事地点</p>
+                  <p class="text-2xl font-black text-gray-700">{{ store.currentChecklist.routeInfo.location }}</p>
+                </div>
+              </div>
+              <div
+                v-if="store.currentChecklist.routeInfo?.departureTime"
+                class="flex items-center gap-3 p-4 bg-white rounded-xl"
+              >
+                <Clock :size="28" class="text-blue-500 flex-shrink-0" />
+                <div>
+                  <p class="text-lg font-bold text-gray-800">出门时间</p>
+                  <p class="text-2xl font-black text-gray-700">{{ store.currentChecklist.routeInfo.departureTime }}</p>
+                </div>
+              </div>
+              <div
+                v-if="store.currentChecklist.routeInfo?.counterName"
+                class="flex items-center gap-3 p-4 bg-white rounded-xl"
+              >
+                <Building2 :size="28" class="text-purple-500 flex-shrink-0" />
+                <div>
+                  <p class="text-lg font-bold text-gray-800">窗口/科室</p>
+                  <p class="text-2xl font-black text-gray-700">{{ store.currentChecklist.routeInfo.counterName }}</p>
+                </div>
+              </div>
+              <div
+                v-if="store.currentChecklist.routeInfo?.contactPhone"
+                class="flex items-center gap-3 p-4 bg-white rounded-xl"
+              >
+                <Phone :size="28" class="text-green-500 flex-shrink-0" />
+                <div>
+                  <p class="text-lg font-bold text-gray-800">联系电话</p>
+                  <p class="text-2xl font-black text-gray-700">{{ store.currentChecklist.routeInfo.contactPhone }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="store.currentChecklist.routeInfo?.needPhoneConfirm || store.currentChecklist.routeInfo?.needTemporaryKeep || store.currentChecklist.routeInfo?.needReturnToLocation"
+            class="mb-8 p-6 bg-amber-50 rounded-2xl border-3 border-amber-300"
+          >
+            <div class="flex items-center gap-4 mb-4">
+              <div class="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center text-white text-4xl">
+                ⚠️
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-amber-800">重要交接提醒</p>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div
+                v-if="store.currentChecklist.routeInfo?.needPhoneConfirm"
+                class="flex items-start gap-3 p-4 bg-white rounded-xl"
+              >
+                <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl flex-shrink-0">
+                  📞
+                </div>
+                <div>
+                  <p class="text-xl font-bold text-gray-800">提前电话确认</p>
+                  <p class="text-lg text-gray-600">出门前先打电话确认办公时间和所需材料</p>
+                </div>
+              </div>
+              <div
+                v-if="store.currentChecklist.routeInfo?.needTemporaryKeep"
+                class="flex items-start gap-3 p-4 bg-white rounded-xl"
+              >
+                <div class="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white text-2xl flex-shrink-0">
+                  <Handshake :size="24" />
+                </div>
+                <div>
+                  <p class="text-xl font-bold text-gray-800">证件交陪同人保管</p>
+                  <p class="text-lg text-gray-600">办事过程中由陪同人负责保管证件原件</p>
+                </div>
+              </div>
+              <div
+                v-if="store.currentChecklist.routeInfo?.needReturnToLocation"
+                class="flex items-start gap-3 p-4 bg-white rounded-xl"
+              >
+                <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl flex-shrink-0">
+                  <Home :size="24" />
+                </div>
+                <div>
+                  <p class="text-xl font-bold text-gray-800">返回后归还原位</p>
+                  <p class="text-lg text-gray-600">办完事后记得把证件放回原来的存放位置</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <h2 class="text-3xl font-black text-gray-800 mb-4 flex items-center gap-3">
+              <span class="text-4xl">📋</span>
+              需携带证件清单
+            </h2>
           </div>
 
           <div class="space-y-5">
