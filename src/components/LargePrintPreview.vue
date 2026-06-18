@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { X, FileDown, Printer, MapPin, Users } from 'lucide-vue-next';
+import { X, FileDown, Printer, MapPin } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
@@ -23,7 +23,7 @@ function handlePrint() {
 }
 
 function handleClose() {
-  store.toggleLargePreview();
+  store.closeLargePreview();
 }
 </script>
 
@@ -38,21 +38,21 @@ function handleClose() {
         <div class="flex justify-center mb-4 gap-3 no-print">
           <button
             class="flex items-center gap-2 px-5 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg hover:bg-blue-600 transition-all"
-            @click="handleExport"
+            @click.stop="handleExport"
           >
             <FileDown :size="20" />
             导出图片
           </button>
           <button
             class="flex items-center gap-2 px-5 py-3 bg-teal-500 text-white rounded-xl font-bold shadow-lg hover:bg-teal-600 transition-all"
-            @click="handlePrint"
+            @click.stop="handlePrint"
           >
             <Printer :size="20" />
             打印随身卡
           </button>
           <button
             class="flex items-center gap-2 px-5 py-3 bg-gray-500 text-white rounded-xl font-bold shadow-lg hover:bg-gray-600 transition-all"
-            @click="handleClose"
+            @click.stop="handleClose"
           >
             <X :size="20" />
             关闭
@@ -65,6 +65,7 @@ function handleClose() {
           :style="{
             backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(255,140,66,0.08) 28px, rgba(255,140,66,0.08) 29px)'
           }"
+          @click.stop
         >
           <div class="text-center mb-8 pb-6 border-b-4 border-dashed border-yellow-300">
             <div
@@ -126,16 +127,16 @@ function handleClose() {
                 </div>
               </div>
 
-              <div class="flex gap-3">
+              <div class="flex flex-col gap-2">
                 <span
                   v-if="item.needOriginal"
-                  class="px-5 py-2 bg-green-500 text-white rounded-full text-xl font-bold shadow-md"
+                  class="px-5 py-2 bg-green-500 text-white rounded-full text-xl font-bold shadow-md text-center"
                 >
                   原件
                 </span>
                 <span
                   v-if="item.needCopy"
-                  class="px-5 py-2 bg-blue-500 text-white rounded-full text-xl font-bold shadow-md"
+                  class="px-5 py-2 bg-blue-500 text-white rounded-full text-xl font-bold shadow-md text-center"
                 >
                   复印件
                 </span>

@@ -7,11 +7,19 @@ interface Props {
   showToggle?: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<{
   toggle: [];
   update: [updates: Partial<ChecklistItem>];
 }>();
+
+function toggleOriginal() {
+  emit('update', { needOriginal: !props.item.needOriginal });
+}
+
+function toggleCopy() {
+  emit('update', { needCopy: !props.item.needCopy });
+}
 </script>
 
 <template>
@@ -32,6 +40,7 @@ const emit = defineEmits<{
             : 'border-gray-300 hover:border-orange-400'
         "
         @click="emit('toggle')"
+        type="button"
       >
         <span v-if="item.isChecked" class="text-lg font-bold">✓</span>
       </button>
@@ -55,40 +64,32 @@ const emit = defineEmits<{
     </div>
 
     <div v-if="showToggle" class="flex flex-col gap-2">
-      <label
-        class="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg transition-all"
+      <button
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer select-none"
         :class="
           item.needOriginal
-            ? 'bg-green-100 text-green-700'
-            : 'bg-gray-50 text-gray-400'
+            ? 'bg-green-500 text-white shadow-md'
+            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
         "
+        @click="toggleOriginal"
+        type="button"
       >
         <FileText :size="14" />
         <span class="text-sm font-medium">原件</span>
-        <input
-          type="checkbox"
-          :checked="item.needOriginal"
-          class="hidden"
-          @change="emit('update', { needOriginal: !item.needOriginal })"
-        />
-      </label>
-      <label
-        class="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg transition-all"
+      </button>
+      <button
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all cursor-pointer select-none"
         :class="
           item.needCopy
-            ? 'bg-blue-100 text-blue-700'
-            : 'bg-gray-50 text-gray-400'
+            ? 'bg-blue-500 text-white shadow-md'
+            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
         "
+        @click="toggleCopy"
+        type="button"
       >
         <Copy :size="14" />
         <span class="text-sm font-medium">复印件</span>
-        <input
-          type="checkbox"
-          :checked="item.needCopy"
-          class="hidden"
-          @change="emit('update', { needCopy: !item.needCopy })"
-        />
-      </label>
+      </button>
     </div>
 
     <div v-else class="flex gap-2">

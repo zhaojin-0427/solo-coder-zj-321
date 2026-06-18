@@ -195,6 +195,14 @@ export const useAppStore = defineStore('app', () => {
     showLargePreview.value = !showLargePreview.value;
   }
 
+  function openLargePreview() {
+    showLargePreview.value = true;
+  }
+
+  function closeLargePreview() {
+    showLargePreview.value = false;
+  }
+
   function resetChecklist() {
     if (!currentChecklist.value) return;
     currentChecklist.value.items.forEach((item) => {
@@ -233,6 +241,8 @@ export const useAppStore = defineStore('app', () => {
     toggleChecklistItem,
     saveChecklist,
     toggleLargePreview,
+    openLargePreview,
+    closeLargePreview,
     resetChecklist,
     completeChecklist,
   };

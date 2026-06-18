@@ -27,29 +27,33 @@ function handleReset() {
 
 async function handleExport() {
   try {
-    store.toggleLargePreview();
+    store.openLargePreview();
     setTimeout(async () => {
-      await exportAsImage('large-print-preview', `出门核对卡-${store.currentChecklist?.sceneName}`);
-      store.toggleLargePreview();
-    }, 100);
+      try {
+        await exportAsImage('large-print-preview', `出门核对卡-${store.currentChecklist?.sceneName}`);
+      } finally {
+        store.closeLargePreview();
+      }
+    }, 150);
   } catch (e) {
     alert('导出失败，请重试');
     console.error(e);
+    store.closeLargePreview();
   }
 }
 
 function handlePrint() {
-  store.toggleLargePreview();
+  store.openLargePreview();
   setTimeout(() => {
     printElement('large-print-preview');
     setTimeout(() => {
-      store.toggleLargePreview();
-    }, 1000);
-  }, 100);
+      store.closeLargePreview();
+    }, 1500);
+  }, 150);
 }
 
 function handleLargePreview() {
-  store.toggleLargePreview();
+  store.openLargePreview();
 }
 </script>
 
