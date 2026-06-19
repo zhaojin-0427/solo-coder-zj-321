@@ -262,17 +262,34 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function copyChecklistAsNew(checklist: Checklist) {
-    const newChecklist: Checklist = {
-      ...JSON.parse(JSON.stringify(checklist)),
-      id: generateId('checklist'),
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString().split('T')[0],
-      isCompleted: false,
+    const clonedItems = checklist.items.map((item) => ({
+      ...item,
+      isChecked: false,
+    }));
+
+    const stages = checklist.checkStages || generateDefaultStages(checklist.sceneName);
+    const newCheckStages: CheckStages = {
+      beforeLeave: stages.beforeLeave.map((s) => ({ ...s, isChecked: false })),
+      onTheWay: stages.onTheWay.map((s) => ({ ...s, isChecked: false })),
+      afterFinish: stages.afterFinish.map((s) => ({ ...s, isChecked: false })),
     };
-    newChecklist.items.forEach((item) => (item.isChecked = false));
-    Object.values(newChecklist.checkStages).forEach((stage) => {
-      stage.forEach((step) => (step.isChecked = false));
-    });
+
+    const routeInfo = checklist.routeInfo || { ...defaultRouteInfo };
+
+    const newChecklist: Checklist = {
+      id: generateId('checklist'),
+      sceneId: checklist.sceneId,
+      sceneName: checklist.sceneName,
+      date: new Date().toISOString().split('T')[0],
+      companion: checklist.companion || '',
+      needsCompanion: checklist.needsCompanion || false,
+      items: clonedItems,
+      isCompleted: false,
+      createdAt: new Date().toISOString().split('T')[0],
+      routeInfo: { ...routeInfo },
+      checkStages: newCheckStages,
+    };
+
     currentChecklist.value = newChecklist;
     const scene = scenes.value.find((s) => s.id === checklist.sceneId);
     activeScene.value = scene || null;
