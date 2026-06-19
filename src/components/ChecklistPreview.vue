@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   RotateCcw,
   FileDown,
@@ -9,8 +9,13 @@ import {
   UserCheck,
   History,
   AlertTriangle,
+  Link2,
+  Pill,
+  FileText,
+  Calendar,
+  AlertCircle,
+  X,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
 import { useAppStore } from '@/stores/app';
 import ChecklistItem from './ChecklistItem.vue';
 import RouteInfoForm from './RouteInfoForm.vue';
@@ -20,14 +25,36 @@ import CollaborationReminder from './CollaborationReminder.vue';
 import ValidityVerification from './ValidityVerification.vue';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
-import type { ChecklistItem as ChecklistItemType } from '@/types';
+import type { ChecklistItem as ChecklistItemType, MedicalRecord } from '@/types';
 
 const store = useAppStore();
 const showHistory = ref(false);
+const showLinkMedicalModal = ref(false);
+const selectedMedicalRecordId = ref<string>('');
 
 const sceneColor = computed(() => store.activeScene?.color || '#FF8C42');
 
 const hasExpiryWarnings = computed(() => store.currentChecklistExpiryWarnings.length > 0);
+
+const isMedicalScene = computed(() => {
+  if (!store.currentChecklist) return false;
+  return store.currentChecklist.sceneName === '看病' || store.currentChecklist.sceneName === '取药';
+});
+
+const linkedMedicalRecord = computed((): MedicalRecord | undefined => {
+  if (!store.currentChecklist) return undefined;
+  if (store.currentChecklist.relatedMedicalRecordId) {
+    return store.getMedicalRecordById(store.currentChecklist.relatedMedicalRecordId);
+  }
+  return store.getRelatedMedicalRecordForChecklist(store.currentChecklist.id);
+});
+
+const availableMedicalRecords = computed(() => {
+  if (!store.currentChecklist) return [];
+  return store.medicalRecords.filter(
+    (r) => !r.relatedChecklistIds.includes(store.currentChecklist!.id)
+  );
+});
 
 function toggleHistory() {
   showHistory.value = !showHistory.value;
@@ -77,6 +104,31 @@ function handlePrint() {
 function handleLargePreview() {
   store.openLargePreview();
 }
+
+function openLinkMedicalModal() {
+  if (linkedMedicalRecord.value) {
+    selectedMedicalRecordId.value = linkedMedicalRecord.value.id;
+  } else {
+    selectedMedicalRecordId.value = '';
+  }
+  showLinkMedicalModal.value = true;
+}
+
+function handleLinkMedical() {
+  if (!store.currentChecklist || !selectedMedicalRecordId.value) {
+    showLinkMedicalModal.value = false;
+    return;
+  }
+  store.linkChecklistToMedicalRecord(selectedMedicalRecordId.value, store.currentChecklist.id);
+  showLinkMedicalModal.value = false;
+}
+
+function handleUnlinkMedical() {
+  if (!store.currentChecklist || !linkedMedicalRecord.value) return;
+  if (confirm('确定要取消与该就医记录的关联吗？')) {
+    store.unlinkChecklistFromMedicalRecord(linkedMedicalRecord.value.id, store.currentChecklist.id);
+  }
+}
 </script>
 
 <template>
@@ -121,6 +173,15 @@ function handleLargePreview() {
         >
           <Printer :size="18" />
           打印
+        </button>
+        <button
+          v-if="isMedicalScene"
+          class="flex items-center gap-2 px-4 py-2.5 bg-white border-2 rounded-xl font-bold transition-all"
+          :class="linkedMedicalRecord ? 'border-rose-400 text-rose-600 bg-rose-50' : 'border-rose-200 text-rose-600 hover:bg-rose-50'"
+          @click="openLinkMedicalModal"
+        >
+          <Link2 :size="18" />
+          {{ linkedMedicalRecord ? '已关联就医记录' : '关联就医记录' }}
         </button>
         <button
           class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white shadow-lg transition-all hover:shadow-xl hover:opacity-90"
@@ -206,6 +267,136 @@ function handleLargePreview() {
       </div>
 
       <ValidityVerification />
+
+      <div
+        v-if="isMedicalScene && linkedMedicalRecord"
+        class="p-5 bg-gradient-to-br from-rose-50 to-pink-50 border-2 border-rose-200 rounded-2xl"
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="font-bold text-lg text-rose-800 flex items-center gap-2">
+            <span class="text-2xl">🏥</span>
+            关联就医信息提醒
+            <span class="text-sm font-normal text-rose-600">（{{ linkedMedicalRecord.elderName }}）</span>
+          </h4>
+          <button
+            class="text-sm text-rose-600 hover:text-rose-800 font-medium"
+            @click="handleUnlinkMedical"
+          >
+            取消关联
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="p-4 bg-white rounded-xl">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Calendar :size="20" class="text-blue-600" />
+              </div>
+              <div>
+                <p class="font-bold text-gray-800">复诊信息</p>
+                <p class="text-gray-600 text-sm mt-1">
+                  {{ linkedMedicalRecord.hospital }} · {{ linkedMedicalRecord.department }}
+                </p>
+                <p class="text-rose-600 font-bold mt-1">
+                  {{ linkedMedicalRecord.nextVisitDate ? `下次复诊：${linkedMedicalRecord.nextVisitDate}` : '暂无复诊计划' }}
+                </p>
+                <p v-if="linkedMedicalRecord.doctorName" class="text-gray-500 text-sm">
+                  主治医生：{{ linkedMedicalRecord.doctorName }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 bg-white rounded-xl">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FileText :size="20" class="text-amber-600" />
+              </div>
+              <div>
+                <p class="font-bold text-gray-800">需携带资料</p>
+                <div class="mt-1 space-y-1">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-sm">
+                    📋 病历本
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded text-sm">
+                    💊 处方单
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-sm">
+                    🔬 检查报告单
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-700 rounded text-sm">
+                    💳 医保卡
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="linkedMedicalRecord.medications.length > 0" class="mt-4 p-4 bg-white rounded-xl">
+          <div class="flex items-start gap-3 mb-3">
+            <div class="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Pill :size="20" class="text-rose-600" />
+            </div>
+            <div class="flex-1">
+              <p class="font-bold text-gray-800">当前服药清单（{{ linkedMedicalRecord.medications.length }} 种）</p>
+              <p class="text-gray-500 text-sm">请告知医生目前正在服用的药物</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-13" style="margin-left: 52px;">
+            <div
+              v-for="med in linkedMedicalRecord.medications"
+              :key="med.id"
+              class="p-3 bg-gray-50 rounded-lg"
+            >
+              <p class="font-bold text-gray-800">{{ med.name }}</p>
+              <p class="text-sm text-gray-600">{{ med.dosage }} · {{ med.frequency }}</p>
+              <p class="text-sm" :class="med.remainingQuantity <= 7 ? 'text-rose-600 font-bold' : 'text-gray-500'">
+                剩余：{{ med.remainingQuantity }}{{ med.unit }}
+                <span v-if="med.remainingQuantity <= 7">（药量不足）</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="linkedMedicalRecord.contraindications" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <div class="flex items-start gap-3">
+            <AlertCircle :size="22" class="text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p class="font-bold text-red-800">⚠️ 用药禁忌/饮食注意</p>
+              <p class="text-red-700 mt-1">{{ linkedMedicalRecord.contraindications }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="linkedMedicalRecord.notes" class="mt-3 p-3 bg-amber-50 rounded-xl">
+          <p class="text-sm text-amber-800">
+            <span class="font-bold">📝 备注：</span>{{ linkedMedicalRecord.notes }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        v-else-if="isMedicalScene && !linkedMedicalRecord"
+        class="p-4 bg-gradient-to-r from-gray-50 to-rose-50 border-2 border-dashed border-rose-200 rounded-2xl"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">💡</span>
+            <div>
+              <p class="font-bold text-gray-800">关联就医记录</p>
+              <p class="text-sm text-gray-600">关联后将自动提示复诊信息、服药清单、需携带的病历处方等</p>
+            </div>
+          </div>
+          <button
+            class="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-colors"
+            @click="openLinkMedicalModal"
+          >
+            <Link2 :size="18" />
+            去关联
+          </button>
+        </div>
+      </div>
 
       <div class="bg-white rounded-2xl p-5 border-2 border-gray-100">
         <h4 class="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
@@ -299,4 +490,114 @@ function handleLargePreview() {
       </div>
     </div>
   </div>
+
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-150"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showLinkMedicalModal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        @click.self="showLinkMedicalModal = false"
+      >
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-4"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-4"
+        >
+          <div
+            v-if="showLinkMedicalModal"
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
+          >
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="text-2xl">🏥</span>
+                关联就医记录
+              </h3>
+              <button
+                class="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"
+                @click="showLinkMedicalModal = false"
+              >
+                <X :size="20" />
+              </button>
+            </div>
+
+            <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <p class="text-sm text-gray-600">
+                选择要关联的就医记录，关联后将自动展示复诊信息、服药清单和需携带的资料提醒
+              </p>
+
+              <div v-if="availableMedicalRecords.length === 0" class="p-6 text-center bg-gray-50 rounded-xl">
+                <span class="text-4xl">📋</span>
+                <p class="mt-3 font-bold text-gray-800">暂无可用的就医记录</p>
+                <p class="text-gray-500 text-sm mt-1">请到"就医用药"标签页创建就医记录</p>
+              </div>
+
+              <div
+                v-for="record in availableMedicalRecords"
+                :key="record.id"
+                class="p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md"
+                :class="selectedMedicalRecordId === record.id ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:border-rose-300'"
+                @click="selectedMedicalRecordId = record.id"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="font-bold text-gray-800">{{ record.elderName }} · {{ record.department }}</p>
+                    <p class="text-sm text-gray-500">{{ record.hospital }}</p>
+                    <p class="text-sm text-gray-500 mt-1">
+                      {{ record.doctorName ? `医生：${record.doctorName}` : '' }}
+                      {{ record.nextVisitDate ? ` · 复诊：${record.nextVisitDate}` : '' }}
+                    </p>
+                  </div>
+                  <div
+                    class="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-1"
+                    :class="selectedMedicalRecordId === record.id ? 'bg-rose-500 border-rose-500' : 'border-gray-300'"
+                  >
+                    <svg
+                      v-if="selectedMedicalRecordId === record.id"
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="w-4 h-4 text-white"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-5 border-t border-gray-100 flex gap-3">
+              <button
+                class="flex-1 py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                @click="showLinkMedicalModal = false"
+              >
+                取消
+              </button>
+              <button
+                class="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl font-bold hover:from-rose-600 hover:to-pink-600 transition-all shadow-lg"
+                :disabled="!selectedMedicalRecordId"
+                :class="!selectedMedicalRecordId ? 'opacity-50 cursor-not-allowed' : ''"
+                @click="handleLinkMedical"
+              >
+                确认关联
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>

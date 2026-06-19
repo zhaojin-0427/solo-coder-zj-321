@@ -1,4 +1,4 @@
-import type { Document, Scene, Checklist, Contact, CollaborationRecord, ReminderDraft } from '@/types';
+import type { Document, Scene, Checklist, Contact, CollaborationRecord, ReminderDraft, MedicalRecord, MedicalTimelineEvent } from '@/types';
 
 const STORAGE_KEYS = {
   DOCUMENTS: 'elderly_documents',
@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   CONTACTS: 'elderly_contacts',
   COLLABORATION_RECORDS: 'elderly_collaboration_records',
   REMINDER_DRAFTS: 'elderly_reminder_drafts',
+  MEDICAL_RECORDS: 'elderly_medical_records',
+  MEDICAL_TIMELINE: 'elderly_medical_timeline',
 };
 
 export function saveDocuments(documents: Document[]): void {
@@ -60,6 +62,24 @@ export function saveReminderDrafts(drafts: ReminderDraft[]): void {
 
 export function loadReminderDrafts(): ReminderDraft[] | null {
   const data = localStorage.getItem(STORAGE_KEYS.REMINDER_DRAFTS);
+  return data ? JSON.parse(data) : null;
+}
+
+export function saveMedicalRecords(records: MedicalRecord[]): void {
+  localStorage.setItem(STORAGE_KEYS.MEDICAL_RECORDS, JSON.stringify(records));
+}
+
+export function loadMedicalRecords(): MedicalRecord[] | null {
+  const data = localStorage.getItem(STORAGE_KEYS.MEDICAL_RECORDS);
+  return data ? JSON.parse(data) : null;
+}
+
+export function saveMedicalTimelineEvents(events: MedicalTimelineEvent[]): void {
+  localStorage.setItem(STORAGE_KEYS.MEDICAL_TIMELINE, JSON.stringify(events));
+}
+
+export function loadMedicalTimelineEvents(): MedicalTimelineEvent[] | null {
+  const data = localStorage.getItem(STORAGE_KEYS.MEDICAL_TIMELINE);
   return data ? JSON.parse(data) : null;
 }
 

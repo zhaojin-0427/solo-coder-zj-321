@@ -7,13 +7,16 @@ import ChecklistPreview from '@/components/ChecklistPreview.vue';
 import LargePrintPreview from '@/components/LargePrintPreview.vue';
 import ContactManager from '@/components/ContactManager.vue';
 import CollaborationHistory from '@/components/CollaborationHistory.vue';
+import MedicalRecordManager from '@/components/MedicalRecordManager.vue';
+import MedicationReminder from '@/components/MedicationReminder.vue';
 
-const activeTab = ref<'documents' | 'scenes' | 'checklist' | 'collaboration'>('documents');
+const activeTab = ref<'documents' | 'scenes' | 'checklist' | 'medical' | 'collaboration'>('documents');
 
 const tabs = [
   { key: 'documents', label: '📁 证件收纳', color: 'from-orange-400 to-orange-500' },
   { key: 'scenes', label: '🎯 办事情景', color: 'from-teal-400 to-teal-500' },
   { key: 'checklist', label: '📝 清单预演', color: 'from-green-400 to-green-500' },
+  { key: 'medical', label: '🏥 就医用药', color: 'from-rose-400 to-pink-500' },
   { key: 'collaboration', label: '👨‍👩‍👧 家庭协作', color: 'from-purple-400 to-indigo-500' },
 ] as const;
 </script>
@@ -61,46 +64,61 @@ const tabs = [
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-orange-400">
           <div class="flex items-center gap-3">
-            <span class="text-4xl">🆔</span>
+            <span class="text-3xl sm:text-4xl">🆔</span>
             <div>
-              <p class="text-3xl font-black text-gray-800">{{ $pinia.state.value.app.documents.length }}</p>
-              <p class="text-gray-500 font-medium">已录入证件</p>
+              <p class="text-2xl sm:text-3xl font-black text-gray-800">{{ $pinia.state.value.app.documents.length }}</p>
+              <p class="text-gray-500 font-medium text-sm">已录入证件</p>
             </div>
           </div>
         </div>
         <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-teal-400">
           <div class="flex items-center gap-3">
-            <span class="text-4xl">🎯</span>
+            <span class="text-3xl sm:text-4xl">🎯</span>
             <div>
-              <p class="text-3xl font-black text-gray-800">{{ $pinia.state.value.app.scenes.length }}</p>
-              <p class="text-gray-500 font-medium">办事场景</p>
+              <p class="text-2xl sm:text-3xl font-black text-gray-800">{{ $pinia.state.value.app.scenes.length }}</p>
+              <p class="text-gray-500 font-medium text-sm">办事场景</p>
             </div>
           </div>
         </div>
         <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-green-400">
           <div class="flex items-center gap-3">
-            <span class="text-4xl">✅</span>
+            <span class="text-3xl sm:text-4xl">✅</span>
             <div>
-              <p class="text-3xl font-black text-gray-800">{{ $pinia.state.value.app.checklists.length }}</p>
-              <p class="text-gray-500 font-medium">历史清单</p>
+              <p class="text-2xl sm:text-3xl font-black text-gray-800">{{ $pinia.state.value.app.checklists.length }}</p>
+              <p class="text-gray-500 font-medium text-sm">历史清单</p>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-rose-400">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl sm:text-4xl">🏥</span>
+            <div>
+              <p class="text-2xl sm:text-3xl font-black text-gray-800">{{ $pinia.state.value.app.medicalRecords.length }}</p>
+              <p class="text-gray-500 font-medium text-sm">就医记录</p>
             </div>
           </div>
         </div>
         <div
           class="bg-white rounded-2xl p-5 shadow-md border-l-4"
-          :class="$pinia.state.value.app.expiryWarningCount > 0 ? 'border-red-400' : 'border-purple-400'"
+          :class="$pinia.state.value.app.followUpWarningCount > 0 ? 'border-orange-400' : $pinia.state.value.app.expiryWarningCount > 0 ? 'border-red-400' : 'border-purple-400'"
         >
           <div class="flex items-center gap-3">
-            <span class="text-4xl">{{ $pinia.state.value.app.expiryWarningCount > 0 ? '⚠️' : '👨‍👩‍👧' }}</span>
+            <span class="text-3xl sm:text-4xl">
+              {{ $pinia.state.value.app.followUpWarningCount > 0 ? '⏰' : $pinia.state.value.app.expiryWarningCount > 0 ? '⚠️' : '👨‍👩‍👧' }}
+            </span>
             <div>
-              <p class="text-3xl font-black" :class="$pinia.state.value.app.expiryWarningCount > 0 ? 'text-red-600' : 'text-gray-800'">
-                {{ $pinia.state.value.app.expiryWarningCount > 0 ? $pinia.state.value.app.expiryWarningCount : $pinia.state.value.app.contacts.length }}
+              <p class="text-2xl sm:text-3xl font-black"
+                 :class="$pinia.state.value.app.followUpWarningCount > 0 ? 'text-orange-600' : $pinia.state.value.app.expiryWarningCount > 0 ? 'text-red-600' : 'text-gray-800'">
+                {{ $pinia.state.value.app.followUpWarningCount > 0 ? $pinia.state.value.app.followUpWarningCount :
+                   $pinia.state.value.app.expiryWarningCount > 0 ? $pinia.state.value.app.expiryWarningCount :
+                   $pinia.state.value.app.contacts.length }}
               </p>
-              <p class="text-gray-500 font-medium">
-                {{ $pinia.state.value.app.expiryWarningCount > 0 ? '临期/过期证件' : '协作联系人' }}
+              <p class="text-gray-500 font-medium text-sm">
+                {{ $pinia.state.value.app.followUpWarningCount > 0 ? '复诊提醒' :
+                   $pinia.state.value.app.expiryWarningCount > 0 ? '临期证件' : '协作联系人' }}
               </p>
             </div>
           </div>
@@ -108,7 +126,24 @@ const tabs = [
       </div>
 
       <div
-        v-if="$pinia.state.value.app.expiryWarningCount > 0"
+        v-if="$pinia.state.value.app.followUpWarningCount > 0"
+        class="mb-8 p-4 bg-gradient-to-r from-orange-50 to-rose-50 border-2 border-orange-200 rounded-2xl cursor-pointer hover:shadow-md transition-shadow"
+        @click="activeTab = 'medical'"
+      >
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">⏰</span>
+          <div class="flex-1">
+            <p class="font-bold text-orange-700">
+              您有 {{ $pinia.state.value.app.followUpWarningCount }} 条复诊与用药提醒
+            </p>
+            <p class="text-sm text-orange-600">点击查看详情，及时安排复诊和补充药品</p>
+          </div>
+          <span class="text-orange-500 font-medium">查看 →</span>
+        </div>
+      </div>
+
+      <div
+        v-else-if="$pinia.state.value.app.expiryWarningCount > 0"
         class="mb-8 p-4 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl"
       >
         <div class="flex items-center gap-3">
@@ -134,6 +169,10 @@ const tabs = [
         <DocumentManager v-if="activeTab === 'documents'" />
         <SceneLibrary v-else-if="activeTab === 'scenes'" />
         <ChecklistPreview v-else-if="activeTab === 'checklist'" />
+        <div v-else-if="activeTab === 'medical'" class="space-y-6">
+          <MedicationReminder />
+          <MedicalRecordManager />
+        </div>
         <div v-else-if="activeTab === 'collaboration'" class="space-y-6">
           <ContactManager />
           <CollaborationHistory />

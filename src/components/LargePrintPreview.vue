@@ -11,11 +11,14 @@ import {
   Handshake,
   Home,
   AlertTriangle,
+  Pill,
+  Calendar,
 } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
 import { getExpiryStatusLabel, getExpiryStatusBgClass, getVerificationStatusLabel } from '@/types';
+import type { MedicalRecord } from '@/types';
 
 const store = useAppStore();
 
@@ -26,6 +29,14 @@ const expiryWarningItems = computed(() =>
     (item) => item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90'
   ) || []
 );
+
+const linkedMedicalRecord = computed((): MedicalRecord | undefined => {
+  if (!store.currentChecklist) return undefined;
+  if (store.currentChecklist.relatedMedicalRecordId) {
+    return store.getMedicalRecordById(store.currentChecklist.relatedMedicalRecordId);
+  }
+  return store.getRelatedMedicalRecordForChecklist(store.currentChecklist.id);
+});
 
 async function handleExport() {
   try {
@@ -298,6 +309,94 @@ function handleClose() {
                     <p class="text-lg text-gray-600">办完事后记得把证件放回原来的存放位置</p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div
+              v-if="linkedMedicalRecord"
+              class="mb-8 p-6 bg-rose-50 rounded-2xl border-3 border-rose-300"
+            >
+              <div class="flex items-center gap-4 mb-5">
+                <div class="w-16 h-16 bg-rose-500 rounded-full flex items-center justify-center text-white text-4xl">
+                  🏥
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-rose-800">就医复诊信息</p>
+                  <p class="text-lg text-rose-600">{{ linkedMedicalRecord.elderName }}</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                <div class="flex items-start gap-3 p-4 bg-white rounded-xl">
+                  <Building2 :size="28" class="text-blue-500 flex-shrink-0 mt-1" />
+                  <div>
+                    <p class="text-lg font-bold text-gray-800">医院科室</p>
+                    <p class="text-2xl font-black text-gray-700">{{ linkedMedicalRecord.hospital }}</p>
+                    <p class="text-xl font-bold text-blue-600">{{ linkedMedicalRecord.department }}</p>
+                    <p v-if="linkedMedicalRecord.doctorName" class="text-lg text-gray-600 mt-1">
+                      医生：{{ linkedMedicalRecord.doctorName }}
+                    </p>
+                  </div>
+                </div>
+                <div
+                  v-if="linkedMedicalRecord.nextVisitDate"
+                  class="flex items-start gap-3 p-4 bg-white rounded-xl"
+                >
+                  <Calendar :size="28" class="text-rose-500 flex-shrink-0 mt-1" />
+                  <div>
+                    <p class="text-lg font-bold text-gray-800">下次复诊时间</p>
+                    <p class="text-3xl font-black text-rose-600">{{ linkedMedicalRecord.nextVisitDate }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="linkedMedicalRecord.medications.length > 0" class="mb-4">
+                <div class="flex items-center gap-3 mb-3">
+                  <Pill :size="26" class="text-amber-600" />
+                  <p class="text-2xl font-bold text-gray-800">服药提醒（{{ linkedMedicalRecord.medications.length }} 种）</p>
+                </div>
+                <div class="space-y-3">
+                  <div
+                    v-for="med in linkedMedicalRecord.medications"
+                    :key="med.id"
+                    class="flex items-start justify-between p-4 bg-white rounded-xl"
+                  >
+                    <div class="flex-1">
+                      <p class="text-xl font-black text-gray-800">{{ med.name }}</p>
+                      <p class="text-lg text-gray-600 mt-1">{{ med.dosage }} · {{ med.frequency }}</p>
+                    </div>
+                    <div class="text-right ml-4">
+                      <p
+                        class="text-lg font-bold"
+                        :class="med.remainingQuantity <= 7 ? 'text-red-600' : 'text-gray-600'"
+                      >
+                        剩余：{{ med.remainingQuantity }}{{ med.unit }}
+                      </p>
+                      <p v-if="med.remainingQuantity <= 7" class="text-base font-bold text-red-500">
+                        ⚠️ 药量不足
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="linkedMedicalRecord.contraindications"
+                class="p-4 bg-red-100 rounded-xl border-2 border-red-300"
+              >
+                <div class="flex items-start gap-3">
+                  <AlertTriangle :size="28" class="text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p class="text-xl font-black text-red-800">⚠️ 用药禁忌 / 饮食注意</p>
+                    <p class="text-lg text-red-700 mt-1">{{ linkedMedicalRecord.contraindications }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="linkedMedicalRecord.notes" class="mt-4 p-4 bg-amber-50 rounded-xl">
+                <p class="text-lg text-amber-800">
+                  <span class="font-black">📝 备注：</span>{{ linkedMedicalRecord.notes }}
+                </p>
               </div>
             </div>
 

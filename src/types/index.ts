@@ -93,6 +93,7 @@ export interface Checklist {
   routeInfo: RouteInfo;
   checkStages: CheckStages;
   validitySnapshots: Record<string, DocumentValiditySnapshot>;
+  relatedMedicalRecordId?: string;
 }
 
 export const defaultRouteInfo: RouteInfo = {
@@ -192,6 +193,8 @@ export type AppState = {
   checklists: Checklist[];
   activeScene: Scene | null;
   currentChecklist: Checklist | null;
+  medicalRecords: MedicalRecord[];
+  medicalTimelineEvents: MedicalTimelineEvent[];
 };
 
 export const categoryLabels: Record<string, string> = {
@@ -343,4 +346,109 @@ export function getVerificationStatusLabel(status: VerificationStatus): string {
     pending: '待确认',
   };
   return labels[status];
+}
+
+export interface Medication {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  remainingQuantity: number;
+  unit: string;
+  notes: string;
+}
+
+export interface DiagnosisRecord {
+  id: string;
+  visitDate: string;
+  diagnosis: string;
+  doctorName: string;
+  department: string;
+  hospital: string;
+  examinationNotes: string;
+  prescriptionNotes: string;
+}
+
+export interface MedicalRecord {
+  id: string;
+  elderName: string;
+  hospital: string;
+  department: string;
+  doctorName: string;
+  doctorPhone: string;
+  diagnosis: string;
+  visitDate: string;
+  nextVisitDate: string;
+  notes: string;
+  contraindications: string;
+  medications: Medication[];
+  diagnosisRecords: DiagnosisRecord[];
+  relatedChecklistIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FollowUpStatus = 'upcoming' | 'overdue' | 'completed' | 'unknown';
+
+export function getFollowUpStatus(nextVisitDate: string): FollowUpStatus {
+  if (!nextVisitDate) return 'unknown';
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const visit = new Date(nextVisitDate);
+  visit.setHours(0, 0, 0, 0);
+  if (isNaN(visit.getTime())) return 'unknown';
+  const diffDays = Math.ceil((visit.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 7) return 'upcoming';
+  return 'completed';
+}
+
+export function getFollowUpStatusLabel(status: FollowUpStatus): string {
+  const labels: Record<FollowUpStatus, string> = {
+    upcoming: '即将复诊',
+    overdue: '已逾期',
+    completed: '已完成',
+    unknown: '未设置',
+  };
+  return labels[status];
+}
+
+export function getFollowUpStatusColor(status: FollowUpStatus): string {
+  const colors: Record<FollowUpStatus, string> = {
+    upcoming: '#F97316',
+    overdue: '#EF4444',
+    completed: '#22C55E',
+    unknown: '#9CA3AF',
+  };
+  return colors[status];
+}
+
+export function getFollowUpStatusBgClass(status: FollowUpStatus): string {
+  const classes: Record<FollowUpStatus, string> = {
+    upcoming: 'bg-orange-100 text-orange-700 border-orange-300',
+    overdue: 'bg-red-100 text-red-700 border-red-300',
+    completed: 'bg-green-100 text-green-700 border-green-300',
+    unknown: 'bg-gray-100 text-gray-500 border-gray-200',
+  };
+  return classes[status];
+}
+
+export function getDaysUntilFollowUp(nextVisitDate: string): number | null {
+  if (!nextVisitDate) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const visit = new Date(nextVisitDate);
+  visit.setHours(0, 0, 0, 0);
+  if (isNaN(visit.getTime())) return null;
+  return Math.ceil((visit.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export interface MedicalTimelineEvent {
+  id: string;
+  medicalRecordId: string;
+  eventType: 'visit' | 'medication' | 'checklist' | 'note';
+  eventLabel: string;
+  description: string;
+  date: string;
+  details: Record<string, unknown>;
 }

@@ -14,6 +14,10 @@ import type {
   ReminderDraft,
   ExpiryStatus,
   DocumentValiditySnapshot,
+  MedicalRecord,
+  Medication,
+  DiagnosisRecord,
+  MedicalTimelineEvent,
 } from '@/types';
 import {
   presetDocuments,
@@ -32,6 +36,10 @@ import {
   saveCollaborationRecords,
   loadReminderDrafts,
   saveReminderDrafts,
+  loadMedicalRecords,
+  saveMedicalRecords,
+  loadMedicalTimelineEvents,
+  saveMedicalTimelineEvents,
   generateId,
 } from '@/utils/storage';
 import {
@@ -40,6 +48,8 @@ import {
   actionTypeLabels,
   getExpiryStatus,
   getExpiryStatusLabel,
+  getFollowUpStatus,
+  getDaysUntilFollowUp,
 } from '@/types';
 
 export const useAppStore = defineStore('app', () => {
@@ -52,6 +62,8 @@ export const useAppStore = defineStore('app', () => {
   const contacts = ref<Contact[]>([]);
   const collaborationRecords = ref<CollaborationRecord[]>([]);
   const reminderDrafts = ref<ReminderDraft[]>([]);
+  const medicalRecords = ref<MedicalRecord[]>([]);
+  const medicalTimelineEvents = ref<MedicalTimelineEvent[]>([]);
 
   function init() {
     const savedDocs = loadDocuments();
@@ -60,6 +72,8 @@ export const useAppStore = defineStore('app', () => {
     const savedContacts = loadContacts();
     const savedRecords = loadCollaborationRecords();
     const savedDrafts = loadReminderDrafts();
+    const savedMedicalRecords = loadMedicalRecords();
+    const savedTimeline = loadMedicalTimelineEvents();
 
     documents.value = savedDocs || presetDocuments;
     scenes.value = savedScenes || presetScenes;
@@ -67,6 +81,8 @@ export const useAppStore = defineStore('app', () => {
     contacts.value = savedContacts || [];
     collaborationRecords.value = savedRecords || [];
     reminderDrafts.value = savedDrafts || [];
+    medicalRecords.value = savedMedicalRecords || [];
+    medicalTimelineEvents.value = savedTimeline || [];
   }
 
   watch(
@@ -113,6 +129,22 @@ export const useAppStore = defineStore('app', () => {
     reminderDrafts,
     (val) => {
       saveReminderDrafts(val);
+    },
+    { deep: true }
+  );
+
+  watch(
+    medicalRecords,
+    (val) => {
+      saveMedicalRecords(val);
+    },
+    { deep: true }
+  );
+
+  watch(
+    medicalTimelineEvents,
+    (val) => {
+      saveMedicalTimelineEvents(val);
     },
     { deep: true }
   );
@@ -814,6 +846,230 @@ export const useAppStore = defineStore('app', () => {
     return getExpiryStatus(doc.expiryDate);
   }
 
+  const upcomingFollowUps = computed(() => {
+    return medicalRecords.value
+      .filter((r) => {
+        const status = getFollowUpStatus(r.nextVisitDate);
+        return status === 'upcoming' || status === 'overdue';
+      })
+      .sort((a, b) => {
+        const daysA = getDaysUntilFollowUp(a.nextVisitDate) ?? 9999;
+        const daysB = getDaysUntilFollowUp(b.nextVisitDate) ?? 9999;
+        return daysA - daysB;
+      });
+  });
+
+  const lowMedicationRecords = computed(() => {
+    return medicalRecords.value.filter((r) =>
+      r.medications.some((m) => m.remainingQuantity <= 7)
+    );
+  });
+
+  const followUpWarningCount = computed(() => {
+    return upcomingFollowUps.value.length;
+  });
+
+  function addMedicalRecord(
+    record: Omit<MedicalRecord, 'id' | 'createdAt' | 'updatedAt' | 'medications' | 'diagnosisRecords' | 'relatedChecklistIds'> & {
+      medications?: Medication[];
+      diagnosisRecords?: DiagnosisRecord[];
+      relatedChecklistIds?: string[];
+    }
+  ) {
+    const now = new Date().toISOString().split('T')[0];
+    const newRecord: MedicalRecord = {
+      ...record,
+      id: generateId('medical'),
+      medications: record.medications || [],
+      diagnosisRecords: record.diagnosisRecords || [],
+      relatedChecklistIds: record.relatedChecklistIds || [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    medicalRecords.value.push(newRecord);
+    addMedicalTimelineEvent(newRecord.id, 'visit', '新建就医记录', `为${newRecord.elderName}创建了${newRecord.hospital}的就医记录`, now, { hospital: newRecord.hospital, department: newRecord.department });
+    return newRecord;
+  }
+
+  function updateMedicalRecord(id: string, updates: Partial<MedicalRecord>) {
+    const index = medicalRecords.value.findIndex((r) => r.id === id);
+    if (index !== -1) {
+      medicalRecords.value[index] = {
+        ...medicalRecords.value[index],
+        ...updates,
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+    }
+  }
+
+  function deleteMedicalRecord(id: string) {
+    medicalRecords.value = medicalRecords.value.filter((r) => r.id !== id);
+    medicalTimelineEvents.value = medicalTimelineEvents.value.filter((e) => e.medicalRecordId !== id);
+  }
+
+  function addMedication(medicalRecordId: string, medication: Omit<Medication, 'id'>) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      const newMed: Medication = {
+        ...medication,
+        id: generateId('med'),
+      };
+      record.medications.push(newMed);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+      addMedicalTimelineEvent(medicalRecordId, 'medication', '添加药品', `添加了药品：${newMed.name}`, new Date().toISOString().split('T')[0], { medicationName: newMed.name, dosage: newMed.dosage });
+      return newMed;
+    }
+    return null;
+  }
+
+  function updateMedication(medicalRecordId: string, medicationId: string, updates: Partial<Medication>) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      const medIndex = record.medications.findIndex((m) => m.id === medicationId);
+      if (medIndex !== -1) {
+        record.medications[medIndex] = {
+          ...record.medications[medIndex],
+          ...updates,
+        };
+        record.updatedAt = new Date().toISOString().split('T')[0];
+      }
+    }
+  }
+
+  function deleteMedication(medicalRecordId: string, medicationId: string) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      record.medications = record.medications.filter((m) => m.id !== medicationId);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  function addDiagnosisRecord(medicalRecordId: string, diagnosis: Omit<DiagnosisRecord, 'id'>) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      const newDiagnosis: DiagnosisRecord = {
+        ...diagnosis,
+        id: generateId('diag'),
+      };
+      record.diagnosisRecords.push(newDiagnosis);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+      return newDiagnosis;
+    }
+    return null;
+  }
+
+  function deleteDiagnosisRecord(medicalRecordId: string, diagnosisId: string) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      record.diagnosisRecords = record.diagnosisRecords.filter((d) => d.id !== diagnosisId);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+    }
+  }
+
+  function linkChecklistToMedicalRecord(medicalRecordId: string, checklistId: string) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record && !record.relatedChecklistIds.includes(checklistId)) {
+      record.relatedChecklistIds.push(checklistId);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+    }
+    const checklist = checklists.value.find((c) => c.id === checklistId) || currentChecklist.value;
+    if (checklist) {
+      checklist.relatedMedicalRecordId = medicalRecordId;
+    }
+    addMedicalTimelineEvent(medicalRecordId, 'checklist', '关联办事清单', `关联了"看病/取药"办事清单`, new Date().toISOString().split('T')[0], { checklistId });
+  }
+
+  function unlinkChecklistFromMedicalRecord(medicalRecordId: string, checklistId: string) {
+    const record = medicalRecords.value.find((r) => r.id === medicalRecordId);
+    if (record) {
+      record.relatedChecklistIds = record.relatedChecklistIds.filter((id) => id !== checklistId);
+      record.updatedAt = new Date().toISOString().split('T')[0];
+    }
+    const checklist = checklists.value.find((c) => c.id === checklistId);
+    if (checklist) {
+      checklist.relatedMedicalRecordId = undefined;
+    }
+  }
+
+  function addMedicalTimelineEvent(
+    medicalRecordId: string,
+    eventType: MedicalTimelineEvent['eventType'],
+    eventLabel: string,
+    description: string,
+    date: string,
+    details: Record<string, unknown> = {}
+  ) {
+    const event: MedicalTimelineEvent = {
+      id: generateId('timeline'),
+      medicalRecordId,
+      eventType,
+      eventLabel,
+      description,
+      date,
+      details,
+    };
+    medicalTimelineEvents.value.unshift(event);
+    return event;
+  }
+
+  function getTimelineByMedicalRecord(medicalRecordId: string): MedicalTimelineEvent[] {
+    return medicalTimelineEvents.value
+      .filter((e) => e.medicalRecordId === medicalRecordId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  function getMedicalRecordById(id: string): MedicalRecord | undefined {
+    return medicalRecords.value.find((r) => r.id === id);
+  }
+
+  function getMedicalRecordsByElder(elderName: string): MedicalRecord[] {
+    return medicalRecords.value.filter((r) => r.elderName === elderName);
+  }
+
+  function getMedicalRecordsByHospital(hospital: string): MedicalRecord[] {
+    return medicalRecords.value.filter((r) => r.hospital.includes(hospital));
+  }
+
+  function getMedicalRecordsByDepartment(department: string): MedicalRecord[] {
+    return medicalRecords.value.filter((r) => r.department.includes(department));
+  }
+
+  function getMedicalRecordsByMedication(medicationName: string): MedicalRecord[] {
+    return medicalRecords.value.filter((r) =>
+      r.medications.some((m) => m.name.includes(medicationName))
+    );
+  }
+
+  function getMedicalRecordsByFollowUpStatus(status: 'upcoming' | 'overdue' | 'completed' | 'unknown'): MedicalRecord[] {
+    return medicalRecords.value.filter((r) => getFollowUpStatus(r.nextVisitDate) === status);
+  }
+
+  function filterMedicalRecords(options: {
+    hospital?: string;
+    department?: string;
+    medication?: string;
+    followUpStatus?: 'upcoming' | 'overdue' | 'completed' | 'unknown';
+  }): MedicalRecord[] {
+    let results = [...medicalRecords.value];
+    if (options.hospital) {
+      results = results.filter((r) => r.hospital.includes(options.hospital!));
+    }
+    if (options.department) {
+      results = results.filter((r) => r.department.includes(options.department!));
+    }
+    if (options.medication) {
+      results = results.filter((r) => r.medications.some((m) => m.name.includes(options.medication!)));
+    }
+    if (options.followUpStatus) {
+      results = results.filter((r) => getFollowUpStatus(r.nextVisitDate) === options.followUpStatus);
+    }
+    return results;
+  }
+
+  function getRelatedMedicalRecordForChecklist(checklistId: string): MedicalRecord | undefined {
+    return medicalRecords.value.find((r) => r.relatedChecklistIds.includes(checklistId));
+  }
+
   return {
     documents,
     scenes,
@@ -824,6 +1080,8 @@ export const useAppStore = defineStore('app', () => {
     contacts,
     collaborationRecords,
     reminderDrafts,
+    medicalRecords,
+    medicalTimelineEvents,
     emergencyContacts,
     expiryWarningCount,
     documentsByExpiryGroup,
@@ -836,6 +1094,9 @@ export const useAppStore = defineStore('app', () => {
     stageCheckedCount,
     stageTotalCount,
     allStagesCompleted,
+    upcomingFollowUps,
+    lowMedicationRecords,
+    followUpWarningCount,
     init,
     addDocument,
     updateDocument,
@@ -870,5 +1131,25 @@ export const useAppStore = defineStore('app', () => {
     addCollaborationRecord,
     updateVerificationStatus,
     getDocumentExpiryStatus,
+    addMedicalRecord,
+    updateMedicalRecord,
+    deleteMedicalRecord,
+    addMedication,
+    updateMedication,
+    deleteMedication,
+    addDiagnosisRecord,
+    deleteDiagnosisRecord,
+    linkChecklistToMedicalRecord,
+    unlinkChecklistFromMedicalRecord,
+    addMedicalTimelineEvent,
+    getTimelineByMedicalRecord,
+    getMedicalRecordById,
+    getMedicalRecordsByElder,
+    getMedicalRecordsByHospital,
+    getMedicalRecordsByDepartment,
+    getMedicalRecordsByMedication,
+    getMedicalRecordsByFollowUpStatus,
+    filterMedicalRecords,
+    getRelatedMedicalRecordForChecklist,
   };
 });
