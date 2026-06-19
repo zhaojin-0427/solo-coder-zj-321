@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { X, Eye, Copy, Calendar, MapPin, Clock, History, ChevronDown, ChevronUp } from 'lucide-vue-next';
+import { X, Eye, Copy, Calendar, MapPin, Clock, History, ChevronDown, ChevronUp, AlertTriangle, Shield } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import type { Checklist } from '@/types';
+import { getExpiryStatusLabel, getExpiryStatusBgClass } from '@/types';
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -10,6 +11,7 @@ const emit = defineEmits<{
 
 const store = useAppStore();
 const expandedChecklistId = ref<string | null>(null);
+const expandedValidityId = ref<string | null>(null);
 
 const sortedChecklists = computed(() => {
   return [...store.checklists].sort(
@@ -33,6 +35,21 @@ function toggleExpand(checklistId: string) {
   } else {
     expandedChecklistId.value = checklistId;
   }
+}
+
+function toggleValidity(checklistId: string) {
+  if (expandedValidityId.value === checklistId) {
+    expandedValidityId.value = null;
+  } else {
+    expandedValidityId.value = checklistId;
+  }
+}
+
+function getExpiredCountFromSnapshots(checklist: Checklist): number {
+  if (!checklist.validitySnapshots) return 0;
+  return Object.values(checklist.validitySnapshots).filter(
+    (s) => s.expiryStatus === 'expired' || s.expiryStatus === 'within30' || s.expiryStatus === 'within90'
+  ).length;
 }
 
 function formatDate(dateStr: string) {
@@ -158,6 +175,56 @@ function getActionIcon(actionType: string): string {
               <span class="flex items-center gap-1 bg-orange-50 text-orange-700 px-3 py-1 rounded-lg">
                 📋 {{ checklist.items.length }} 项证件
               </span>
+              <span
+                v-if="getExpiredCountFromSnapshots(checklist) > 0"
+                class="flex items-center gap-1 bg-red-50 text-red-700 px-3 py-1 rounded-lg"
+              >
+                <AlertTriangle :size="14" />
+                {{ getExpiredCountFromSnapshots(checklist) }} 项临期/过期
+              </span>
+            </div>
+
+            <div
+              v-if="checklist.validitySnapshots && Object.keys(checklist.validitySnapshots).length > 0"
+              class="mb-3"
+            >
+              <button
+                class="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                @click="toggleValidity(checklist.id)"
+              >
+                <Shield :size="14" />
+                查看当时证件有效期状态
+                <component :is="expandedValidityId === checklist.id ? ChevronUp : ChevronDown" :size="14" />
+              </button>
+              <div
+                v-if="expandedValidityId === checklist.id"
+                class="mt-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100 space-y-2"
+              >
+                <div
+                  v-for="(snapshot, docId) in checklist.validitySnapshots"
+                  :key="docId"
+                  class="flex items-center gap-2 text-sm"
+                >
+                  <span
+                    class="px-2 py-0.5 rounded-full text-xs font-bold border"
+                    :class="getExpiryStatusBgClass(snapshot.expiryStatus)"
+                  >
+                    {{ getExpiryStatusLabel(snapshot.expiryStatus) }}
+                  </span>
+                  <span class="text-gray-600">
+                    {{ snapshot.expiryDate ? `有效期至：${snapshot.expiryDate}` : '未设置有效期' }}
+                  </span>
+                  <span v-if="snapshot.last4Digits" class="text-gray-400 text-xs font-mono">
+                    尾号{{ snapshot.last4Digits }}
+                  </span>
+                  <span v-if="snapshot.replacementLocation" class="text-gray-400 text-xs">
+                    | 补办：{{ snapshot.replacementLocation }}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1 pt-1 border-t border-indigo-100">
+                  ⏰ 以上为出门当时的证件有效期快照，不随后续证件信息变化而更新
+                </p>
+              </div>
             </div>
 
             <div

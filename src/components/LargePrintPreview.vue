@@ -10,14 +10,22 @@ import {
   Phone,
   Handshake,
   Home,
+  AlertTriangle,
 } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
+import { getExpiryStatusLabel, getExpiryStatusBgClass, getVerificationStatusLabel } from '@/types';
 
 const store = useAppStore();
 
 const sceneColor = computed(() => store.activeScene?.color || '#FF8C42');
+
+const expiryWarningItems = computed(() =>
+  store.currentChecklist?.items.filter(
+    (item) => item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90'
+  ) || []
+);
 
 async function handleExport() {
   try {
@@ -96,6 +104,78 @@ function handleClose() {
               <p class="text-2xl text-gray-600 font-medium">
                 📅 日期：{{ store.currentChecklist.date }}
               </p>
+            </div>
+
+            <div
+              v-if="expiryWarningItems.length > 0"
+              class="mb-8 p-6 bg-red-50 rounded-2xl border-3 border-red-300"
+            >
+              <div class="flex items-center gap-4 mb-4">
+                <div class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white text-4xl">
+                  🚨
+                </div>
+                <div>
+                  <p class="text-2xl font-bold text-red-800">证件有效期预警</p>
+                  <p class="text-lg text-red-600">以下证件临期或已过期，请务必确认</p>
+                </div>
+              </div>
+              <div class="space-y-3">
+                <div
+                  v-for="item in expiryWarningItems"
+                  :key="'warn-' + item.documentId"
+                  class="flex items-start gap-3 p-4 bg-white rounded-xl"
+                >
+                  <span class="text-3xl flex-shrink-0">{{ item.documentIcon }}</span>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <p class="text-xl font-black text-gray-800">{{ item.documentName }}</p>
+                      <span
+                        class="px-3 py-1 rounded-full text-base font-bold"
+                        :class="getExpiryStatusBgClass(item.expiryStatus)"
+                      >
+                        {{ getExpiryStatusLabel(item.expiryStatus) }}
+                      </span>
+                    </div>
+                    <p
+                      v-if="item.expiryDate && item.expiryDate !== '长期'"
+                      class="text-lg text-gray-600 mt-1"
+                    >
+                      有效期至：{{ item.expiryDate }}
+                    </p>
+                    <p
+                      v-if="item.verificationStatus !== 'pending'"
+                      class="text-lg mt-1"
+                      :class="item.verificationStatus === 'valid' ? 'text-green-600' : item.verificationStatus === 'phoneConfirmed' ? 'text-blue-600' : 'text-red-600'"
+                    >
+                      ✅ {{ getVerificationStatusLabel(item.verificationStatus) }}
+                    </p>
+                    <div
+                      v-if="item.verificationStatus === 'needReplacement'"
+                      class="mt-2 p-3 bg-red-50 rounded-xl border border-red-200"
+                    >
+                      <p class="text-base font-bold text-red-700">补办信息：</p>
+                      <div
+                        v-for="doc in store.documents.filter(d => d.id === item.documentId)"
+                        :key="doc.id"
+                        class="mt-1 space-y-1"
+                      >
+                        <p v-if="doc.replacementLocation" class="text-base text-red-600">
+                          📍 {{ doc.replacementLocation }}
+                        </p>
+                        <p v-if="doc.replacementPhone" class="text-base text-red-600">
+                          📞 {{ doc.replacementPhone }}
+                        </p>
+                        <p v-if="doc.replacementMaterials" class="text-base text-red-600">
+                          📋 需带：{{ doc.replacementMaterials }}
+                        </p>
+                        <p v-if="doc.needInPerson" class="text-base text-orange-600 font-bold">
+                          ⚠️ 需本人到场
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div
@@ -247,15 +327,36 @@ function handleClose() {
                 </div>
 
                 <div class="flex-1 min-w-0">
-                  <p class="text-3xl font-black text-gray-800 leading-tight">
-                    {{ item.documentName }}
-                  </p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-3xl font-black text-gray-800 leading-tight">
+                      {{ item.documentName }}
+                    </p>
+                    <span
+                      v-if="item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90'"
+                      class="px-3 py-1 rounded-full text-base font-bold border"
+                      :class="getExpiryStatusBgClass(item.expiryStatus)"
+                    >
+                      {{ getExpiryStatusLabel(item.expiryStatus) }}
+                    </span>
+                  </div>
                   <div class="flex items-center gap-2 mt-2">
                     <MapPin :size="24" class="text-orange-500 flex-shrink-0" />
                     <span class="text-xl text-gray-600 font-medium">
                       存放位置：{{ item.storageLocation }}
                     </span>
+                    <span
+                      v-if="item.last4Digits"
+                      class="text-lg text-gray-400"
+                    >
+                      | 尾号{{ item.last4Digits }}
+                    </span>
                   </div>
+                  <p
+                    v-if="item.expiryDate && item.expiryDate !== '长期' && (item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90')"
+                    class="text-lg text-red-600 mt-1 font-medium"
+                  >
+                    ⚠️ 有效期至：{{ item.expiryDate }}
+                  </p>
                 </div>
 
                 <div class="flex flex-col gap-2">

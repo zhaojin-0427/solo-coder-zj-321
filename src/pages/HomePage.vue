@@ -89,13 +89,35 @@ const tabs = [
             </div>
           </div>
         </div>
-        <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-purple-400">
+        <div
+          class="bg-white rounded-2xl p-5 shadow-md border-l-4"
+          :class="$pinia.state.value.app.expiryWarningCount > 0 ? 'border-red-400' : 'border-purple-400'"
+        >
           <div class="flex items-center gap-3">
-            <span class="text-4xl">👨‍👩‍👧</span>
+            <span class="text-4xl">{{ $pinia.state.value.app.expiryWarningCount > 0 ? '⚠️' : '👨‍👩‍👧' }}</span>
             <div>
-              <p class="text-3xl font-black text-gray-800">{{ $pinia.state.value.app.contacts.length }}</p>
-              <p class="text-gray-500 font-medium">协作联系人</p>
+              <p class="text-3xl font-black" :class="$pinia.state.value.app.expiryWarningCount > 0 ? 'text-red-600' : 'text-gray-800'">
+                {{ $pinia.state.value.app.expiryWarningCount > 0 ? $pinia.state.value.app.expiryWarningCount : $pinia.state.value.app.contacts.length }}
+              </p>
+              <p class="text-gray-500 font-medium">
+                {{ $pinia.state.value.app.expiryWarningCount > 0 ? '临期/过期证件' : '协作联系人' }}
+              </p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="$pinia.state.value.app.expiryWarningCount > 0"
+        class="mb-8 p-4 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-2xl"
+      >
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">🚨</span>
+          <div class="flex-1">
+            <p class="font-bold text-red-700">
+              您有 {{ $pinia.state.value.app.expiryWarningCount }} 个证件存在有效期风险
+            </p>
+            <p class="text-sm text-red-600">请在"证件收纳"中查看临期提醒，及时确认或补办</p>
           </div>
         </div>
       </div>

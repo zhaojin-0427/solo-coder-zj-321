@@ -1,3 +1,14 @@
+export type ExpiryStatus = 'expired' | 'within30' | 'within90' | 'longTerm' | 'unknown';
+
+export interface DocumentValiditySnapshot {
+  last4Digits: string;
+  issueDate: string;
+  expiryDate: string;
+  expiryStatus: ExpiryStatus;
+  replacementLocation: string;
+  replacementPhone: string;
+}
+
 export interface Document {
   id: string;
   name: string;
@@ -8,6 +19,13 @@ export interface Document {
   notes: string;
   hasOriginal: boolean;
   hasCopy: boolean;
+  last4Digits: string;
+  issueDate: string;
+  expiryDate: string;
+  replacementLocation: string;
+  replacementPhone: string;
+  replacementMaterials: string;
+  needInPerson: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,6 +40,8 @@ export interface Scene {
   isPreset: boolean;
 }
 
+export type VerificationStatus = 'valid' | 'phoneConfirmed' | 'needReplacement' | 'pending';
+
 export interface ChecklistItem {
   documentId: string;
   documentName: string;
@@ -30,6 +50,10 @@ export interface ChecklistItem {
   needOriginal: boolean;
   needCopy: boolean;
   isChecked: boolean;
+  expiryStatus: ExpiryStatus;
+  expiryDate: string;
+  last4Digits: string;
+  verificationStatus: VerificationStatus;
 }
 
 export interface RouteInfo {
@@ -68,6 +92,7 @@ export interface Checklist {
   createdAt: string;
   routeInfo: RouteInfo;
   checkStages: CheckStages;
+  validitySnapshots: Record<string, DocumentValiditySnapshot>;
 }
 
 export const defaultRouteInfo: RouteInfo = {
@@ -262,3 +287,60 @@ export const relationshipOptions = [
   '朋友',
   '邻居',
 ];
+
+export function getExpiryStatus(expiryDate: string): ExpiryStatus {
+  if (!expiryDate) return 'unknown';
+  if (expiryDate === '长期') return 'longTerm';
+  const now = new Date();
+  const expiry = new Date(expiryDate);
+  if (isNaN(expiry.getTime())) return 'unknown';
+  const diffMs = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'expired';
+  if (diffDays <= 30) return 'within30';
+  if (diffDays <= 90) return 'within90';
+  return 'longTerm';
+}
+
+export function getExpiryStatusLabel(status: ExpiryStatus): string {
+  const labels: Record<ExpiryStatus, string> = {
+    expired: '已过期',
+    within30: '30天内到期',
+    within90: '90天内到期',
+    longTerm: '长期有效',
+    unknown: '未设置有效期',
+  };
+  return labels[status];
+}
+
+export function getExpiryStatusColor(status: ExpiryStatus): string {
+  const colors: Record<ExpiryStatus, string> = {
+    expired: '#EF4444',
+    within30: '#F97316',
+    within90: '#EAB308',
+    longTerm: '#22C55E',
+    unknown: '#9CA3AF',
+  };
+  return colors[status];
+}
+
+export function getExpiryStatusBgClass(status: ExpiryStatus): string {
+  const classes: Record<ExpiryStatus, string> = {
+    expired: 'bg-red-100 text-red-700 border-red-300',
+    within30: 'bg-orange-100 text-orange-700 border-orange-300',
+    within90: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    longTerm: 'bg-green-100 text-green-700 border-green-300',
+    unknown: 'bg-gray-100 text-gray-500 border-gray-200',
+  };
+  return classes[status];
+}
+
+export function getVerificationStatusLabel(status: VerificationStatus): string {
+  const labels: Record<VerificationStatus, string> = {
+    valid: '在有效期内',
+    phoneConfirmed: '已电话确认可用',
+    needReplacement: '需要先补办',
+    pending: '待确认',
+  };
+  return labels[status];
+}

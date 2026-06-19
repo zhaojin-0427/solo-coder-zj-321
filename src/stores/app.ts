@@ -12,6 +12,8 @@ import type {
   CollaborationRecord,
   CollaborationActionType,
   ReminderDraft,
+  ExpiryStatus,
+  DocumentValiditySnapshot,
 } from '@/types';
 import {
   presetDocuments,
@@ -36,6 +38,8 @@ import {
   defaultRouteInfo,
   generateDefaultStages,
   actionTypeLabels,
+  getExpiryStatus,
+  getExpiryStatusLabel,
 } from '@/types';
 
 export const useAppStore = defineStore('app', () => {
@@ -262,6 +266,7 @@ export const useAppStore = defineStore('app', () => {
       .map((docId) => {
         const doc = documents.value.find((d) => d.id === docId);
         if (!doc) return null;
+        const status = getExpiryStatus(doc.expiryDate);
         return {
           documentId: doc.id,
           documentName: doc.name,
@@ -270,9 +275,28 @@ export const useAppStore = defineStore('app', () => {
           needOriginal: true,
           needCopy: false,
           isChecked: false,
+          expiryStatus: status,
+          expiryDate: doc.expiryDate,
+          last4Digits: doc.last4Digits,
+          verificationStatus: (status === 'expired' || status === 'within30' || status === 'within90') ? 'pending' as const : 'valid' as const,
         };
       })
       .filter(Boolean) as ChecklistItem[];
+
+    const validitySnapshots: Record<string, DocumentValiditySnapshot> = {};
+    scene.requiredDocumentIds.forEach((docId) => {
+      const doc = documents.value.find((d) => d.id === docId);
+      if (doc) {
+        validitySnapshots[doc.id] = {
+          last4Digits: doc.last4Digits,
+          issueDate: doc.issueDate,
+          expiryDate: doc.expiryDate,
+          expiryStatus: getExpiryStatus(doc.expiryDate),
+          replacementLocation: doc.replacementLocation,
+          replacementPhone: doc.replacementPhone,
+        };
+      }
+    });
 
     currentChecklist.value = {
       id: generateId('checklist'),
@@ -286,6 +310,7 @@ export const useAppStore = defineStore('app', () => {
       createdAt: new Date().toISOString().split('T')[0],
       routeInfo: { ...defaultRouteInfo },
       checkStages: generateDefaultStages(scene.name),
+      validitySnapshots,
     };
   }
 
@@ -377,6 +402,22 @@ export const useAppStore = defineStore('app', () => {
 
   function completeChecklist() {
     if (!currentChecklist.value) return;
+    if (!currentChecklist.value.validitySnapshots) {
+      currentChecklist.value.validitySnapshots = {};
+    }
+    currentChecklist.value.items.forEach((item) => {
+      const doc = documents.value.find((d) => d.id === item.documentId);
+      if (doc) {
+        currentChecklist.value!.validitySnapshots[item.documentId] = {
+          last4Digits: doc.last4Digits,
+          issueDate: doc.issueDate,
+          expiryDate: doc.expiryDate,
+          expiryStatus: getExpiryStatus(doc.expiryDate),
+          replacementLocation: doc.replacementLocation,
+          replacementPhone: doc.replacementPhone,
+        };
+      }
+    });
     currentChecklist.value.isCompleted = true;
     saveChecklist();
     addCollaborationRecord(
@@ -427,10 +468,18 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function copyChecklistAsNew(checklist: Checklist) {
-    const clonedItems = checklist.items.map((item) => ({
-      ...item,
-      isChecked: false,
-    }));
+    const clonedItems = checklist.items.map((item) => {
+      const doc = documents.value.find((d) => d.id === item.documentId);
+      const currentStatus = doc ? getExpiryStatus(doc.expiryDate) : item.expiryStatus;
+      return {
+        ...item,
+        isChecked: false,
+        expiryStatus: currentStatus,
+        expiryDate: doc?.expiryDate || item.expiryDate,
+        last4Digits: doc?.last4Digits || item.last4Digits,
+        verificationStatus: (currentStatus === 'expired' || currentStatus === 'within30' || currentStatus === 'within90') ? 'pending' as const : 'valid' as const,
+      };
+    });
 
     const stages = checklist.checkStages || generateDefaultStages(checklist.sceneName);
     const newCheckStages: CheckStages = {
@@ -440,6 +489,21 @@ export const useAppStore = defineStore('app', () => {
     };
 
     const routeInfo = checklist.routeInfo || { ...defaultRouteInfo };
+
+    const validitySnapshots: Record<string, DocumentValiditySnapshot> = {};
+    checklist.items.forEach((item) => {
+      const doc = documents.value.find((d) => d.id === item.documentId);
+      if (doc) {
+        validitySnapshots[doc.id] = {
+          last4Digits: doc.last4Digits,
+          issueDate: doc.issueDate,
+          expiryDate: doc.expiryDate,
+          expiryStatus: getExpiryStatus(doc.expiryDate),
+          replacementLocation: doc.replacementLocation,
+          replacementPhone: doc.replacementPhone,
+        };
+      }
+    });
 
     const newChecklist: Checklist = {
       id: generateId('checklist'),
@@ -453,6 +517,7 @@ export const useAppStore = defineStore('app', () => {
       createdAt: new Date().toISOString().split('T')[0],
       routeInfo: { ...routeInfo },
       checkStages: newCheckStages,
+      validitySnapshots,
     };
 
     currentChecklist.value = newChecklist;
@@ -560,9 +625,43 @@ export const useAppStore = defineStore('app', () => {
       const parts = [];
       if (item.needOriginal) parts.push('原件');
       if (item.needCopy) parts.push('复印件');
-      lines.push(`  ${index + 1}. ${item.documentName}（${parts.join('+')}）`);
+      let line = `  ${index + 1}. ${item.documentName}（${parts.join('+')}）`;
+      if (item.expiryStatus === 'expired') {
+        line += ' ⚠️已过期';
+      } else if (item.expiryStatus === 'within30') {
+        line += ' ⚠️即将到期';
+      } else if (item.expiryStatus === 'within90') {
+        line += ' ⚡注意有效期';
+      }
+      lines.push(line);
     });
     lines.push('');
+    const expiryWarnings = checklist.items.filter(
+      (item) => item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90'
+    );
+    if (expiryWarnings.length > 0) {
+      lines.push('🚨 证件有效期预警：');
+      expiryWarnings.forEach((item) => {
+        const doc = documents.value.find((d) => d.id === item.documentId);
+        const statusLabel = getExpiryStatusLabel(item.expiryStatus);
+        let warning = `  • ${item.documentName}：${statusLabel}`;
+        if (item.verificationStatus === 'valid') {
+          warning += '（已确认在有效期内）';
+        } else if (item.verificationStatus === 'phoneConfirmed') {
+          warning += '（已电话确认可用）';
+        } else if (item.verificationStatus === 'needReplacement') {
+          warning += '（需要先补办！）';
+          if (doc?.replacementLocation) {
+            warning += ` 补办地点：${doc.replacementLocation}`;
+          }
+          if (doc?.replacementPhone) {
+            warning += ` 电话：${doc.replacementPhone}`;
+          }
+        }
+        lines.push(warning);
+      });
+      lines.push('');
+    }
     if (checklist.needsCompanion && checklist.companion) {
       lines.push(`👨‍👩‍👧 陪同人：${checklist.companion}`);
       lines.push('');
@@ -660,6 +759,61 @@ export const useAppStore = defineStore('app', () => {
     return records;
   }
 
+  const expiryWarningCount = computed(() => {
+    return documents.value.filter((d) => {
+      const status = getExpiryStatus(d.expiryDate);
+      return status === 'expired' || status === 'within30' || status === 'within90';
+    }).length;
+  });
+
+  const documentsByExpiryGroup = computed(() => {
+    const groups: Record<ExpiryStatus, Document[]> = {
+      expired: [],
+      within30: [],
+      within90: [],
+      longTerm: [],
+      unknown: [],
+    };
+    documents.value.forEach((doc) => {
+      const status = getExpiryStatus(doc.expiryDate);
+      groups[status].push(doc);
+    });
+    return groups;
+  });
+
+  const currentChecklistExpiryWarnings = computed(() => {
+    if (!currentChecklist.value) return [];
+    return currentChecklist.value.items.filter(
+      (item) => item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90'
+    );
+  });
+
+  const allVerificationsCompleted = computed(() => {
+    if (!currentChecklist.value) return false;
+    return currentChecklist.value.items.every(
+      (item) => {
+        if (item.expiryStatus === 'expired' || item.expiryStatus === 'within30' || item.expiryStatus === 'within90') {
+          return item.verificationStatus !== 'pending';
+        }
+        return true;
+      }
+    );
+  });
+
+  function updateVerificationStatus(docId: string, status: ChecklistItem['verificationStatus']) {
+    if (!currentChecklist.value) return;
+    const item = currentChecklist.value.items.find((i) => i.documentId === docId);
+    if (item) {
+      item.verificationStatus = status;
+    }
+  }
+
+  function getDocumentExpiryStatus(docId: string): ExpiryStatus {
+    const doc = documents.value.find((d) => d.id === docId);
+    if (!doc) return 'unknown';
+    return getExpiryStatus(doc.expiryDate);
+  }
+
   return {
     documents,
     scenes,
@@ -671,6 +825,10 @@ export const useAppStore = defineStore('app', () => {
     collaborationRecords,
     reminderDrafts,
     emergencyContacts,
+    expiryWarningCount,
+    documentsByExpiryGroup,
+    currentChecklistExpiryWarnings,
+    allVerificationsCompleted,
     checkedCount,
     totalCount,
     progressPercent,
@@ -710,5 +868,7 @@ export const useAppStore = defineStore('app', () => {
     getRecordsByChecklist,
     getFilteredRecords,
     addCollaborationRecord,
+    updateVerificationStatus,
+    getDocumentExpiryStatus,
   };
 });

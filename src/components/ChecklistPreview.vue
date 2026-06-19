@@ -8,6 +8,7 @@ import {
   Users,
   UserCheck,
   History,
+  AlertTriangle,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { useAppStore } from '@/stores/app';
@@ -16,6 +17,7 @@ import RouteInfoForm from './RouteInfoForm.vue';
 import CheckStages from './CheckStages.vue';
 import ChecklistHistory from './ChecklistHistory.vue';
 import CollaborationReminder from './CollaborationReminder.vue';
+import ValidityVerification from './ValidityVerification.vue';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
 import type { ChecklistItem as ChecklistItemType } from '@/types';
@@ -24,6 +26,8 @@ const store = useAppStore();
 const showHistory = ref(false);
 
 const sceneColor = computed(() => store.activeScene?.color || '#FF8C42');
+
+const hasExpiryWarnings = computed(() => store.currentChecklistExpiryWarnings.length > 0);
 
 function toggleHistory() {
   showHistory.value = !showHistory.value;
@@ -145,6 +149,21 @@ function handleLargePreview() {
       />
 
       <div
+        v-if="hasExpiryWarnings"
+        class="p-4 bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-300 rounded-2xl"
+      >
+        <div class="flex items-center gap-3">
+          <AlertTriangle :size="24" class="text-red-500" />
+          <div class="flex-1">
+            <p class="font-bold text-red-700">
+              发现 {{ store.currentChecklistExpiryWarnings.length }} 个临期/过期证件
+            </p>
+            <p class="text-sm text-red-600">请在下方"有效期核验"步骤中确认证件是否可用</p>
+          </div>
+        </div>
+      </div>
+
+      <div
         class="p-6 rounded-2xl text-white"
         :style="{ backgroundColor: sceneColor }"
       >
@@ -185,6 +204,8 @@ function handleLargePreview() {
           🎉 太棒了！所有证件都已准备就绪！
         </div>
       </div>
+
+      <ValidityVerification />
 
       <div class="bg-white rounded-2xl p-5 border-2 border-gray-100">
         <h4 class="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
@@ -240,7 +261,7 @@ function handleLargePreview() {
       <CheckStages />
 
       <button
-        v-if="store.allChecked && store.allStagesCompleted && !store.currentChecklist.isCompleted"
+        v-if="store.allChecked && store.allStagesCompleted && store.allVerificationsCompleted && !store.currentChecklist.isCompleted"
         class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-xl shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all transform hover:-translate-y-0.5"
         @click="store.completeChecklist()"
       >
@@ -248,7 +269,16 @@ function handleLargePreview() {
       </button>
 
       <div
-        v-if="!store.allStagesCompleted && store.currentChecklist"
+        v-if="hasExpiryWarnings && !store.allVerificationsCompleted && store.currentChecklist"
+        class="p-4 bg-red-50 border-2 border-red-200 rounded-2xl text-center"
+      >
+        <p class="text-red-700 font-bold">
+          🚨 请先完成"有效期核验"步骤，确认临期/过期证件是否可用
+        </p>
+      </div>
+
+      <div
+        v-else-if="!store.allStagesCompleted && store.currentChecklist"
         class="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-center"
       >
         <p class="text-amber-700 font-bold">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { FileText, Copy, MapPin } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { FileText, Copy, MapPin, AlertTriangle } from 'lucide-vue-next';
 import type { ChecklistItem } from '@/types';
+import { getExpiryStatusLabel, getExpiryStatusBgClass, getVerificationStatusLabel } from '@/types';
 
 interface Props {
   item: ChecklistItem;
@@ -12,6 +14,10 @@ const emit = defineEmits<{
   toggle: [];
   update: [updates: Partial<ChecklistItem>];
 }>();
+
+const isAtRisk = computed(() =>
+  props.item.expiryStatus === 'expired' || props.item.expiryStatus === 'within30' || props.item.expiryStatus === 'within90'
+);
 
 function toggleOriginal() {
   emit('update', { needOriginal: !props.item.needOriginal });
@@ -28,7 +34,9 @@ function toggleCopy() {
     :class="
       item.isChecked
         ? 'border-green-300 bg-green-50'
-        : 'border-gray-100 hover:border-orange-200'
+        : isAtRisk
+          ? 'border-red-200 bg-red-50/30'
+          : 'border-gray-100 hover:border-orange-200'
     "
   >
     <div v-if="showToggle" class="flex-shrink-0">
@@ -52,14 +60,30 @@ function toggleCopy() {
 
     <div class="flex-1 min-w-0">
       <h4
-        class="font-bold text-lg transition-all duration-200"
+        class="font-bold text-lg transition-all duration-200 flex items-center gap-2"
         :class="item.isChecked ? 'text-green-700 line-through' : 'text-gray-800'"
       >
         {{ item.documentName }}
+        <span
+          v-if="isAtRisk"
+          class="inline-block text-xs px-2 py-0.5 rounded-full font-bold border"
+          :class="getExpiryStatusBgClass(item.expiryStatus)"
+        >
+          {{ getExpiryStatusLabel(item.expiryStatus) }}
+        </span>
+        <span
+          v-if="isAtRisk && item.verificationStatus !== 'pending'"
+          class="inline-block text-xs px-2 py-0.5 rounded-full font-medium"
+          :class="item.verificationStatus === 'valid' ? 'bg-green-100 text-green-700' : item.verificationStatus === 'phoneConfirmed' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'"
+        >
+          {{ getVerificationStatusLabel(item.verificationStatus) }}
+        </span>
       </h4>
       <div class="flex items-center gap-2 text-sm text-gray-500 mt-1">
         <MapPin :size="14" />
         <span>{{ item.storageLocation }}</span>
+        <span v-if="item.last4Digits" class="text-gray-400">| 尾号{{ item.last4Digits }}</span>
+        <span v-if="item.expiryDate && item.expiryDate !== '长期'" class="text-gray-400">| 有效期至{{ item.expiryDate }}</span>
       </div>
     </div>
 
