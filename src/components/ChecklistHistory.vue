@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { X, Eye, Copy, Calendar, MapPin, Clock } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { X, Eye, Copy, Calendar, MapPin, Clock, History, ChevronDown, ChevronUp } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import type { Checklist } from '@/types';
 
@@ -9,6 +9,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useAppStore();
+const expandedChecklistId = ref<string | null>(null);
 
 const sortedChecklists = computed(() => {
   return [...store.checklists].sort(
@@ -26,6 +27,14 @@ function handleCopy(checklist: Checklist) {
   emit('close');
 }
 
+function toggleExpand(checklistId: string) {
+  if (expandedChecklistId.value === checklistId) {
+    expandedChecklistId.value = null;
+  } else {
+    expandedChecklistId.value = checklistId;
+  }
+}
+
 function formatDate(dateStr: string) {
   const date = new Date(dateStr);
   return date.toLocaleDateString('zh-CN', {
@@ -33,6 +42,35 @@ function formatDate(dateStr: string) {
     month: 'long',
     day: 'numeric',
   });
+}
+
+function formatDateTime(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toLocaleString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getActionIcon(actionType: string): string {
+  const icons: Record<string, string> = {
+    document_add: '➕',
+    document_edit: '✏️',
+    document_delete: '🗑️',
+    scene_add: '➕',
+    scene_edit: '✏️',
+    scene_delete: '🗑️',
+    checklist_add: '📝',
+    checklist_edit: '✏️',
+    checklist_delete: '🗑️',
+    checklist_copy: '📋',
+    checklist_complete: '✅',
+    route_info_edit: '🗺️',
+    reminder_sent: '💬',
+  };
+  return icons[actionType] || '📌';
 }
 </script>
 
@@ -137,21 +175,85 @@ function formatDate(dateStr: string) {
 
           <div class="flex gap-2 sm:flex-col">
             <button
-              class="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all text-sm"
+              class="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all text-sm min-h-[44px]"
               @click="handleOpen(checklist)"
             >
               <Eye :size="16" />
               查看
             </button>
             <button
-              class="flex items-center gap-2 px-4 py-2.5 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all text-sm"
+              class="flex items-center gap-2 px-4 py-2.5 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all text-sm min-h-[44px]"
               @click="handleCopy(checklist)"
             >
               <Copy :size="16" />
               复制为新方案
             </button>
+            <button
+              class="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all text-sm min-h-[44px]"
+              @click="toggleExpand(checklist.id)"
+            >
+              <History :size="16" />
+              协作记录
+              <component :is="expandedChecklistId === checklist.id ? ChevronUp : ChevronDown" :size="14" />
+            </button>
           </div>
         </div>
+
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 max-h-0"
+          enter-to-class="opacity-100 max-h-96"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 max-h-96"
+          leave-to-class="opacity-0 max-h-0"
+        >
+          <div
+            v-if="expandedChecklistId === checklist.id"
+            class="mt-4 pt-4 border-t-2 border-dashed border-purple-200 overflow-hidden"
+          >
+            <h5 class="font-bold text-indigo-700 mb-3 flex items-center gap-2">
+              <span class="text-xl">📜</span>
+              协作动态记录
+              <span class="text-sm font-normal text-gray-500">
+                ({{ store.getRecordsByChecklist(checklist.id).length }} 条)
+              </span>
+            </h5>
+            <div
+              v-if="store.getRecordsByChecklist(checklist.id).length === 0"
+              class="text-center py-6 bg-white rounded-xl"
+            >
+              <p class="text-gray-400">暂无协作记录</p>
+            </div>
+            <div v-else class="space-y-2 max-h-48 overflow-y-auto pr-2">
+              <div
+                v-for="record in store.getRecordsByChecklist(checklist.id)"
+                :key="record.id"
+                class="flex items-center gap-3 p-3 bg-white rounded-lg border border-indigo-100"
+              >
+                <div
+                  class="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                  :class="{
+                    'bg-green-100': record.actionType.includes('add'),
+                    'bg-blue-100': record.actionType.includes('edit'),
+                    'bg-red-100': record.actionType.includes('delete'),
+                    'bg-purple-100': record.actionType.includes('copy') || record.actionType.includes('reminder'),
+                    'bg-amber-100': record.actionType.includes('complete'),
+                    'bg-teal-100': record.actionType.includes('route'),
+                  }"
+                >
+                  {{ getActionIcon(record.actionType) }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-gray-800 text-sm">{{ record.actionLabel }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5 truncate">{{ record.description }}</p>
+                </div>
+                <span class="text-xs text-gray-400 flex-shrink-0">
+                  {{ formatDateTime(record.createdAt) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
   </div>

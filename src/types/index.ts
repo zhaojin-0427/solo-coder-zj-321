@@ -184,3 +184,81 @@ export const categoryColors: Record<string, string> = {
   social: '#2A9D8F',
   other: '#AA96DA',
 };
+
+export interface Contact {
+  id: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  isEmergency: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CollaborationActionType =
+  | 'document_add'
+  | 'document_edit'
+  | 'document_delete'
+  | 'scene_add'
+  | 'scene_edit'
+  | 'scene_delete'
+  | 'checklist_add'
+  | 'checklist_edit'
+  | 'checklist_delete'
+  | 'checklist_copy'
+  | 'checklist_complete'
+  | 'route_info_edit'
+  | 'reminder_sent';
+
+export interface CollaborationRecord {
+  id: string;
+  actionType: CollaborationActionType;
+  actionLabel: string;
+  targetType: 'document' | 'scene' | 'checklist' | 'route' | 'reminder';
+  targetId: string;
+  targetName: string;
+  description: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+  relatedChecklistId?: string;
+}
+
+export interface ReminderDraft {
+  id: string;
+  checklistId: string;
+  selectedContactIds: string[];
+  note: string;
+  content: string;
+  createdAt: string;
+}
+
+export const actionTypeLabels: Record<CollaborationActionType, string> = {
+  document_add: '添加证件',
+  document_edit: '编辑证件',
+  document_delete: '删除证件',
+  scene_add: '添加场景',
+  scene_edit: '编辑场景',
+  scene_delete: '删除场景',
+  checklist_add: '创建清单',
+  checklist_edit: '编辑清单',
+  checklist_delete: '删除清单',
+  checklist_copy: '复制方案',
+  checklist_complete: '完成核验',
+  route_info_edit: '编辑路线信息',
+  reminder_sent: '发送提醒',
+};
+
+export const relationshipOptions = [
+  '配偶',
+  '儿子',
+  '女儿',
+  '父亲',
+  '母亲',
+  '兄弟',
+  '姐妹',
+  '孙子',
+  '孙女',
+  '其他亲属',
+  '朋友',
+  '邻居',
+];

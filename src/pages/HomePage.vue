@@ -5,13 +5,16 @@ import DocumentManager from '@/components/DocumentManager.vue';
 import SceneLibrary from '@/components/SceneLibrary.vue';
 import ChecklistPreview from '@/components/ChecklistPreview.vue';
 import LargePrintPreview from '@/components/LargePrintPreview.vue';
+import ContactManager from '@/components/ContactManager.vue';
+import CollaborationHistory from '@/components/CollaborationHistory.vue';
 
-const activeTab = ref<'documents' | 'scenes' | 'checklist'>('documents');
+const activeTab = ref<'documents' | 'scenes' | 'checklist' | 'collaboration'>('documents');
 
 const tabs = [
   { key: 'documents', label: '📁 证件收纳', color: 'from-orange-400 to-orange-500' },
   { key: 'scenes', label: '🎯 办事情景', color: 'from-teal-400 to-teal-500' },
   { key: 'checklist', label: '📝 清单预演', color: 'from-green-400 to-green-500' },
+  { key: 'collaboration', label: '👨‍👩‍👧 家庭协作', color: 'from-purple-400 to-indigo-500' },
 ] as const;
 </script>
 
@@ -58,7 +61,7 @@ const tabs = [
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-orange-400">
           <div class="flex items-center gap-3">
             <span class="text-4xl">🆔</span>
@@ -86,6 +89,15 @@ const tabs = [
             </div>
           </div>
         </div>
+        <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-purple-400">
+          <div class="flex items-center gap-3">
+            <span class="text-4xl">👨‍👩‍👧</span>
+            <div>
+              <p class="text-3xl font-black text-gray-800">{{ $pinia.state.value.app.contacts.length }}</p>
+              <p class="text-gray-500 font-medium">协作联系人</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Transition
@@ -100,6 +112,10 @@ const tabs = [
         <DocumentManager v-if="activeTab === 'documents'" />
         <SceneLibrary v-else-if="activeTab === 'scenes'" />
         <ChecklistPreview v-else-if="activeTab === 'checklist'" />
+        <div v-else-if="activeTab === 'collaboration'" class="space-y-6">
+          <ContactManager />
+          <CollaborationHistory />
+        </div>
       </Transition>
     </main>
 

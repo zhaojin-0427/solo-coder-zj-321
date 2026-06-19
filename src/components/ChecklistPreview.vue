@@ -15,6 +15,7 @@ import ChecklistItem from './ChecklistItem.vue';
 import RouteInfoForm from './RouteInfoForm.vue';
 import CheckStages from './CheckStages.vue';
 import ChecklistHistory from './ChecklistHistory.vue';
+import CollaborationReminder from './CollaborationReminder.vue';
 import { exportAsImage } from '@/utils/export';
 import { printElement } from '@/utils/print';
 import type { ChecklistItem as ChecklistItemType } from '@/types';
@@ -215,6 +216,8 @@ function handleLargePreview() {
       </div>
 
       <RouteInfoForm />
+
+      <CollaborationReminder />
 
       <div>
         <h4 class="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
