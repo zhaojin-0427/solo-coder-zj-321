@@ -613,16 +613,27 @@ export const useAppStore = defineStore('app', () => {
       createdAt: new Date().toISOString(),
     };
     reminderDrafts.value.unshift(draft);
+    const contactNames = selectedContactIds
+      .map((id) => getContactById(id)?.name)
+      .filter(Boolean) as string[];
     addCollaborationRecord(
       'reminder_sent',
       'reminder',
       draft.id,
       `提醒-${checklistId}`,
-      `生成了协作提醒`,
-      { checklistId, contactCount: selectedContactIds.length },
+      `生成了协作提醒，发送给：${contactNames.join('、')}`,
+      { checklistId, contactCount: selectedContactIds.length, contactIds: selectedContactIds, contactNames },
       checklistId
     );
     return draft;
+  }
+
+  function getLatestReminderDraft(checklistId: string): ReminderDraft | undefined {
+    return reminderDrafts.value.find((d) => d.checklistId === checklistId);
+  }
+
+  function getReminderDraftsByChecklist(checklistId: string): ReminderDraft[] {
+    return reminderDrafts.value.filter((d) => d.checklistId === checklistId);
   }
 
   function getRecordsByChecklist(checklistId: string): CollaborationRecord[] {
@@ -636,6 +647,15 @@ export const useAppStore = defineStore('app', () => {
     let records = [...collaborationRecords.value];
     if (actionType) {
       records = records.filter((r) => r.actionType === actionType);
+    }
+    if (contactId) {
+      records = records.filter((r) => {
+        if (r.actionType === 'reminder_sent' && r.details?.contactIds) {
+          const ids = r.details.contactIds as string[];
+          return ids.includes(contactId);
+        }
+        return false;
+      });
     }
     return records;
   }
@@ -685,6 +705,8 @@ export const useAppStore = defineStore('app', () => {
     getContactById,
     generateReminderContent,
     saveReminderDraft,
+    getLatestReminderDraft,
+    getReminderDraftsByChecklist,
     getRecordsByChecklist,
     getFilteredRecords,
     addCollaborationRecord,

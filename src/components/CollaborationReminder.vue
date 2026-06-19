@@ -9,15 +9,36 @@ import {
   Phone,
   Star,
   FileText,
+  History,
+  X,
 } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
-import type { Contact } from '@/types';
+import type { Contact, ReminderDraft } from '@/types';
 
 const store = useAppStore();
 const isExpanded = ref(false);
 const note = ref('');
 const selectedContactIds = ref<string[]>([]);
 const copied = ref(false);
+const showDraftHistory = ref(false);
+const selectedDraft = ref<ReminderDraft | null>(null);
+
+watch(
+  () => store.currentChecklist?.id,
+  (newChecklistId) => {
+    if (newChecklistId) {
+      const latestDraft = store.getLatestReminderDraft(newChecklistId);
+      if (latestDraft) {
+        note.value = latestDraft.note;
+        selectedContactIds.value = [...latestDraft.selectedContactIds];
+      } else {
+        note.value = '';
+        selectedContactIds.value = [];
+      }
+    }
+  },
+  { immediate: true }
+);
 
 const selectedContacts = computed(() => {
   return selectedContactIds.value
@@ -33,6 +54,32 @@ const reminderContent = computed(() => {
     selectedContacts.value
   );
 });
+
+const draftHistory = computed(() => {
+  if (!store.currentChecklist) return [];
+  return store.getReminderDraftsByChecklist(store.currentChecklist.id);
+});
+
+function formatDraftDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function loadDraft(draft: ReminderDraft) {
+  note.value = draft.note;
+  selectedContactIds.value = [...draft.selectedContactIds];
+  selectedDraft.value = draft;
+}
+
+function closeDraftHistory() {
+  showDraftHistory.value = false;
+  selectedDraft.value = null;
+}
 
 function toggleContact(contactId: string) {
   const index = selectedContactIds.value.indexOf(contactId);
@@ -179,7 +226,15 @@ function toggleExpand() {
             <FileText :size="20" />
             提醒内容预览
           </label>
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
+            <button
+              v-if="draftHistory.length > 0"
+              class="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-xl font-bold hover:bg-indigo-200 transition-colors min-h-[44px]"
+              @click="showDraftHistory = true"
+            >
+              <History :size="16" />
+              历史提醒 ({{ draftHistory.length }})
+            </button>
             <button
               class="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-xl font-bold hover:bg-purple-200 transition-colors min-h-[44px]"
               @click="saveReminder"
@@ -203,5 +258,84 @@ function toggleExpand() {
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="showDraftHistory"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        @click.self="closeDraftHistory"
+      >
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
+          <div class="sticky top-0 bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between rounded-t-3xl">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <History :size="20" class="text-indigo-500" />
+              历史提醒记录
+              <span class="text-sm font-normal text-gray-500">({{ draftHistory.length }} 条)</span>
+            </h3>
+            <button
+              class="p-2 hover:bg-gray-100 rounded-full transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              @click="closeDraftHistory"
+            >
+              <X :size="20" />
+            </button>
+          </div>
+
+          <div class="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+            <div v-if="draftHistory.length === 0" class="text-center py-12">
+              <span class="text-5xl">📭</span>
+              <p class="mt-4 text-gray-500 text-lg">暂无历史提醒</p>
+              <p class="text-gray-400">保存提醒后会记录在这里</p>
+            </div>
+            <div v-else class="space-y-4">
+              <div
+                v-for="draft in draftHistory"
+                :key="draft.id"
+                class="p-5 rounded-2xl border-2 transition-all cursor-pointer"
+                :class="
+                  selectedDraft?.id === draft.id
+                    ? 'border-indigo-400 bg-indigo-50'
+                    : 'border-gray-100 hover:border-indigo-200 hover:bg-gray-50'
+                "
+                @click="loadDraft(draft)"
+              >
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-2xl">💬</span>
+                    <span class="font-bold text-gray-800">{{ formatDraftDate(draft.createdAt) }}</span>
+                  </div>
+                  <div v-if="selectedDraft?.id === draft.id" class="flex items-center gap-1 text-indigo-600 font-medium">
+                    <Check :size="16" />
+                    已选择
+                  </div>
+                </div>
+                <div v-if="draft.note" class="mb-3">
+                  <span class="text-sm text-gray-500">备注：</span>
+                  <span class="text-gray-700">{{ draft.note }}</span>
+                </div>
+                <div class="mb-3">
+                  <span class="text-sm text-gray-500">发送给：</span>
+                  <span class="text-gray-700">
+                    {{ draft.selectedContactIds
+                      .map((id) => store.getContactById(id)?.name)
+                      .filter(Boolean)
+                      .join('、') || '无' }}
+                  </span>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-xl">
+                  <p class="text-sm text-gray-500 mb-2">内容预览：</p>
+                  <pre class="whitespace-pre-wrap text-gray-600 text-sm font-sans max-h-32 overflow-y-auto">{{ draft.content }}</pre>
+                </div>
+                <button
+                  class="mt-3 w-full py-2.5 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors min-h-[44px]"
+                  @click.stop="loadDraft(draft); closeDraftHistory();"
+                >
+                  ✨ 使用此提醒
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   Calendar,
+  Users,
 } from 'lucide-vue-next';
 import { useAppStore } from '@/stores/app';
 import type { CollaborationActionType, CollaborationRecord } from '@/types';
@@ -21,15 +22,19 @@ const props = defineProps<{
 const store = useAppStore();
 const isExpanded = ref(true);
 const filterAction = ref<CollaborationActionType | 'all'>('all');
+const filterContact = ref<string>('all');
 
 const records = computed(() => {
   if (props.checklistId) {
     return store.getRecordsByChecklist(props.checklistId);
   }
-  if (filterAction.value === 'all') {
+  if (filterAction.value === 'all' && filterContact.value === 'all') {
     return store.collaborationRecords;
   }
-  return store.getFilteredRecords(undefined, filterAction.value);
+  return store.getFilteredRecords(
+    filterContact.value === 'all' ? undefined : filterContact.value,
+    filterAction.value === 'all' ? undefined : filterAction.value
+  );
 });
 
 const actionTypeOptions = computed(() => {
@@ -106,35 +111,68 @@ function toggleExpand() {
     </button>
 
     <div v-show="isExpanded" class="px-5 pb-6 space-y-4 border-t border-indigo-100 pt-5">
-      <div v-if="!checklistId" class="flex flex-wrap gap-2 items-center">
-        <div class="flex items-center gap-2 text-indigo-600">
-          <Filter :size="18" />
-          <span class="font-bold">筛选：</span>
+      <div v-if="!checklistId" class="space-y-3">
+        <div class="flex flex-wrap gap-2 items-center">
+          <div class="flex items-center gap-2 text-indigo-600">
+            <Filter :size="18" />
+            <span class="font-bold">操作类型：</span>
+          </div>
+          <button
+            class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px]"
+            :class="
+              filterAction === 'all'
+                ? 'bg-indigo-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-indigo-50'
+            "
+            @click="filterAction = 'all'"
+          >
+            全部
+          </button>
+          <button
+            v-for="option in actionTypeOptions"
+            :key="option.value"
+            class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px]"
+            :class="
+              filterAction === option.value
+                ? 'bg-indigo-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-indigo-50'
+            "
+            @click="filterAction = option.value"
+          >
+            {{ option.label }}
+          </button>
         </div>
-        <button
-          class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px]"
-          :class="
-            filterAction === 'all'
-              ? 'bg-indigo-500 text-white'
-              : 'bg-white text-gray-600 hover:bg-indigo-50'
-          "
-          @click="filterAction = 'all'"
-        >
-          全部
-        </button>
-        <button
-          v-for="option in actionTypeOptions"
-          :key="option.value"
-          class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px]"
-          :class="
-            filterAction === option.value
-              ? 'bg-indigo-500 text-white'
-              : 'bg-white text-gray-600 hover:bg-indigo-50'
-          "
-          @click="filterAction = option.value"
-        >
-          {{ option.label }}
-        </button>
+        <div v-if="store.contacts.length > 0" class="flex flex-wrap gap-2 items-center">
+          <div class="flex items-center gap-2 text-purple-600">
+            <Users :size="18" />
+            <span class="font-bold">联系人：</span>
+          </div>
+          <button
+            class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px]"
+            :class="
+              filterContact === 'all'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-purple-50'
+            "
+            @click="filterContact = 'all'"
+          >
+            全部联系人
+          </button>
+          <button
+            v-for="contact in store.contacts"
+            :key="contact.id"
+            class="px-3 py-2 rounded-lg font-medium transition-all text-sm min-h-[44px] flex items-center gap-1"
+            :class="
+              filterContact === contact.id
+                ? 'bg-purple-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-purple-50'
+            "
+            @click="filterContact = contact.id"
+          >
+            {{ contact.name }}
+            <span v-if="contact.isEmergency" class="text-red-500">⭐</span>
+          </button>
+        </div>
       </div>
 
       <div
